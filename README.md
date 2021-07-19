@@ -1,14 +1,34 @@
 # Project
 
-> This repo has been populated by an initial template to help get you started. Please
-> make sure to update the content to build a great experience for community-building.
+This repository is used to host the PowerShell install and upgrade helper script for the new Microsoft Defender for Endpoint unified installer package for Windows Server 2012 R2 and Windows Server 2016. This script is not intended for use with Azure Defender, or with Microsoft Endpoint Configuration Manager version 2111 or later.
 
-As the maintainer of this project, please make a few updates:
-
-- Improving this README.MD file to provide a great experience
-- Updating SUPPORT.MD with content about this project's support experience
-- Understanding the security reporting process in SECURITY.MD
-- Remove this section from the README
+<#
+.SYNOPSIS
+    Helper script for installing/uninstalling Microsoft Defender for Downlevel Servers.
+.DESCRIPTION
+    On install scenario:
+        It first removes MMA workspace when RemoveMMA guid is provided.
+        Next uninstalls SCEP if present.
+        Next installs two hotfixes required by the MSI (if they are not installed)
+        Next installs the Microsoft Defender for Downlevel Servers MSI (i.e. md4ws.msi)
+        Finally, it runs the onboarding script when OnboardingScript is provided.
+    On uninstall scenario:
+        It will run the offboarding script, if provided. Otherwise it is assumed that WD-ATP is offboarded.
+        Uninstalls the MSI.
+        Removes Defender Powershell module, if loaded inside current Powershell session.
+.INPUTS
+    md4ws.msi
+.OUTPUTS
+    none
+.EXAMPLE
+    .\Install.ps1
+.EXAMPLE
+    .\Install.ps1 -UI -Log -Etl
+.EXAMPLE
+    .\Install.ps1 -Uninstall
+.EXAMPLE
+    .\Install.ps1 -Uninstall -Etl
+#>
 
 ## Contributing
 
