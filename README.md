@@ -18,10 +18,7 @@ On uninstall scenario:
 2. Uninstall the product.
 3. Removes the Defender Powershell module, if it was loaded inside current Powershell session.
 
-INPUTS  
-    md4ws.msi
-OUTPUTS  
-    none  
+  
 **EXAMPLE 1**: Simply install the MSI. The script executes install steps 2, 3 and 4 mentioned above.  
 ```.\Install.ps1```  
 
