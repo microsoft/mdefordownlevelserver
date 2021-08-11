@@ -29,7 +29,7 @@ OUTPUTS
 ```.\Install.ps1 -UI -Log -Etl```  
 
 **EXAMPLE 3**: Perform uninstall steps 2 and 3.  
-```.\Install.ps1 -Uninstal```   
+```.\Install.ps1 -Uninstall```   
 
 **EXAMPLE 4**: Same as example #3 except with additional logging.  
 ```.\Install.ps1 -Uninstall -Etl```  
