@@ -7,11 +7,11 @@ Helper script for installing/uninstalling Microsoft Defender for Downlevel Serve
 
 DESCRIPTION  
 On install scenario:
-1. It removes the OMS workspace when the workspace ID is provided with the parameter RemoveMMA. **NOTE: this step is for cleanup purposes only. **.
-2. The next step uninstalls SCEP if it is present.
-3. Then, it checks for prerequisites and downloads and installs two hotfixes if the prerequisites have not been met. Note that on machines that have received recent  monthly update rollup packages, the prerequisites will have been met.
+1. It removes the OMS workspace when the workspace ID is provided with the parameter **RemoveMMA**. **NOTE: this step is for cleanup purposes only. **.
+2. The next step uninstalls SCEP - if it is present.
+3. Then, it checks for prerequisites and downloads and installs two hotfixes on Windows Server 2012 R2 if the prerequisites have not been met. Note that on machines that have received recent  monthly update rollup packages, the prerequisites will have been met and this step is NOT needed.
 4. Next, it installs the Microsoft Defender for Downlevel Servers MSI (md4ws.msi downloaded from the onboarding page for Windows Server 2012 R2 and 2016). If the file is in the same directory as the script, no input is required. If the product was already installed, it will perform a reinstallation with the provided MSI.
-5. Finally, it runs the onboarding script, if provided using the parameter OnboardingScript. Please use the script for Windows Server 2019 for **Group Policy** as it is non-interactive; the local onboarding script will fail.
+5. Finally, it runs the onboarding script, if provided using the parameter **OnboardingScript**. Please use the script for Windows Server 2019 for **Group Policy** as it is non-interactive; the local onboarding script will fail.
 
 On uninstall scenario:
 1. It will run the offboarding script, if provided using the parameter OffboardingScript. Otherwise it is assumed that the machine is in an offboarded state. **NOTE: Uninstallation is only possible if the machine has been offboarded first.** Please use the script for Windows Server 2019 for **Group Policy** as it is non-interactive; the local onboarding script will fail.
