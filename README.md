@@ -34,8 +34,8 @@ On uninstall scenario:
 **EXAMPLE 5**: Fully automate (including optional OMS workspace removal) installation and onboarding. In this case, the onboarding script is located in the same directory as the installer script and the installation package (MSI). Substitute <WORKSPACE_ID> with the ID found on the onboarding page (for Windows Server 2008 R2) in your tenant.  
 ```.\Install.ps1 -RemoveMMA <WORKSPACE_ID> -OnboardingScript ".\WindowsDefenderATPOnboardingScript.CMD"```  
 
-**EXAMPLE 6**: Offboard then uninstall the MSI.
-```.\Install.ps1``` -Uninstall -OffboardingScript ".\WindowsDefenderATPOffboardingScript.CMD"
+**EXAMPLE 6**: Offboard then uninstall the MSI.  
+```.\Install.ps1 -Uninstall -OffboardingScript ".\WindowsDefenderATPOffboardingScript.CMD"```
 
 ## Contributing
 
