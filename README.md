@@ -14,12 +14,12 @@ On install scenario:
 5. Finally, it runs the onboarding script, if provided using the parameter **OnboardingScript**. Please use the script for Windows Server 2019 for **Group Policy** as it is non-interactive; the local onboarding script will fail.
 
 On uninstall scenario:
-1. It will run the offboarding script, if provided using the parameter OffboardingScript. Otherwise it is assumed that the machine is in an offboarded state. **NOTE: Uninstallation is only possible if the machine has been offboarded first.** Please use the script for Windows Server 2019 for **Group Policy** as it is non-interactive; the local onboarding script will fail.
+1. It will run the offboarding script, if provided using the parameter **OffboardingScript**. Otherwise it is assumed that the machine is in an offboarded state. **NOTE: Uninstallation is only possible if the machine has been offboarded first.** Please use the script for Windows Server 2019 for **Group Policy** as it is non-interactive; the local onboarding script will fail.
 2. Uninstall the product.
 3. Removes the Defender Powershell module, if it was loaded inside current Powershell session.
 
   
-**EXAMPLE 1**: Simply install the MSI. The script executes install steps 2, 3 and 4 mentioned above.  
+**EXAMPLE 1**: Install the MSI. The script executes install steps 2, 3 and 4 mentioned above.  
 ```.\Install.ps1```  
 
 **EXAMPLE 2**: Same as #1 except it will display the installer UI and enable more verbose logging for troubleshooting purposes.  
@@ -33,6 +33,9 @@ On uninstall scenario:
 
 **EXAMPLE 5**: Fully automate (including optional OMS workspace removal) installation and onboarding. In this case, the onboarding script is located in the same directory as the installer script and the installation package (MSI). Substitute <WORKSPACE_ID> with the ID found on the onboarding page (for Windows Server 2008 R2) in your tenant.  
 ```.\Install.ps1 -RemoveMMA <WORKSPACE_ID> -OnboardingScript ".\WindowsDefenderATPOnboardingScript.CMD"```  
+
+**EXAMPLE 6**: Offboard then uninstall the MSI.
+```.\Install.ps1``` -Uninstall -OffboardingScript ".\WindowsDefenderATPOffboardingScript.CMD"
 
 ## Contributing
 
