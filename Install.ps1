@@ -94,6 +94,13 @@ function Test-IsAdministrator {
     Test-CurrentUserIsInRole 'S-1-5-32-544'
 }
 
+function Get-FileVersion {
+    [CmdletBinding()]
+    param([string] $File)
+    $versionInfo = [Diagnostics.FileVersionInfo]::GetVersionInfo($File)
+    New-Object System.Version $($versionInfo.FileMajorPart), $($versionInfo.FileMinorPart), $($versionInfo.FileBuildPart), $($versionInfo.FilePrivatePart)
+}
+
 $osVersion = [environment]::OSVersion.Version.ToString()
 
 $msi = if ((-not $DevMode.IsPresent) -and (Test-Path -Path $PSScriptRoot\md4ws.msi)) {
@@ -267,62 +274,122 @@ try {
     }
 
     [version] $osVersion = [System.Environment]::OSVersion.Version
-    if ($action -eq 'install' -and $osVersion.Major -eq 6 -and $osVersion.Minor -eq 3) {
-        # Server2012R2 needs two KBs to be installed ... 
-        function Install-KB {
-            [CmdletBinding()]
-            param([string] $Uri, [string]$KB, [scriptblock] $scriptBlock)
-            $present = & $scriptBlock
-            if ($present) {
-                return
-            }
-            $PreviousProgressPreference = $ProgressPreference               
-            $outFile = Join-Path -Path:$env:TEMP $((New-Object System.Uri $Uri).Segments[-1])
-            try {
-                $ProgressPreference = 'SilentlyContinue'
-                if (Get-HotFix -Id:$KB -ErrorAction:SilentlyContinue) {
-                    Write-Host "$KB already installed."
+    if ($action -eq 'install') {
+        if ($osVersion.Major -eq 6 -and $osVersion.Minor -eq 3) {
+            # Server2012R2 needs two KBs to be installed ... 
+            function Install-KB {
+                [CmdletBinding()]
+                param([string] $Uri, [string]$KB, [scriptblock] $scriptBlock)
+                $present = & $scriptBlock
+                if ($present) {
                     return
                 }
-                Write-Host "Downloading $KB to $outFile"
-                Invoke-WebRequest -Uri:$Uri -OutFile:$outFile -ErrorAction:Stop
-                $command.FilePath = (Get-Command 'wusa.exe').Path
-                $command.ArgumentList = @($outFile, '/quiet', '/norestart')
-                Write-Host "Installing $KB"
-                $proc = Start-Process @command
-                if ($proc.ExitCode -eq 0) {
-                    Write-Host "$KB installed."
-                } elseif ($proc.ExitCode -eq 0x80240017) {
-                    #0x80240017 = WU_E_NOT_APPLICABLE = Operation was not performed because there are no applicable updates.
-                    Write-Warning "$KB not applicable, continuing..."
-                } else {
-                    Write-Warning "$KB installation failed with exitcode: $($proc.ExitCode)."
-                }
-            } catch {
-                ## Might be OK to continue (MSI installer will recheck these dependencies and it will fail.)
-                Write-Warning "ignoring error/exception: $_"
-                #throw
-            } finally {
-                $ProgressPreference = $PreviousProgressPreference
-                if (Test-Path -Path:$outFile -PathType:Leaf) {
-                    Write-Host "Removing $outFile"
-                    Remove-Item -Path:$outFile -Force -ErrorAction:SilentlyContinue
+                $PreviousProgressPreference = $ProgressPreference               
+                $outFile = Join-Path -Path:$env:TEMP $((New-Object System.Uri $Uri).Segments[-1])
+                try {
+                    $ProgressPreference = 'SilentlyContinue'
+                    if (Get-HotFix -Id:$KB -ErrorAction:SilentlyContinue) {
+                        Write-Host "$KB already installed."
+                        return
+                    }
+                    Write-Host "Downloading $KB to $outFile"
+                    Invoke-WebRequest -Uri:$Uri -OutFile:$outFile -ErrorAction:Stop
+                    $command.FilePath = (Get-Command 'wusa.exe').Path
+                    $command.ArgumentList = @($outFile, '/quiet', '/norestart')
+                    Write-Host "Installing $KB"
+                    $proc = Start-Process @command
+                    if ($proc.ExitCode -eq 0) {
+                        Write-Host "$KB installed."
+                    } elseif ($proc.ExitCode -eq 0x80240017) {
+                        #0x80240017 = WU_E_NOT_APPLICABLE = Operation was not performed because there are no applicable updates.
+                        Write-Warning "$KB not applicable, continuing..."
+                    } else {
+                        Write-Warning "$KB installation failed with exitcode: $($proc.ExitCode)."
+                    }
+                } catch {
+                    ## Might be OK to continue (MSI installer will recheck these dependencies and it will fail.)
+                    Write-Warning "ignoring error/exception: $_"
+                    #throw
+                } finally {
+                    $ProgressPreference = $PreviousProgressPreference
+                    if (Test-Path -Path:$outFile -PathType:Leaf) {
+                        Write-Host "Removing $outFile"
+                        Remove-Item -Path:$outFile -Force -ErrorAction:SilentlyContinue
+                    }
                 }
             }
-        }
-        ## ucrt dependency (needed by WinDefend service)
-        Install-KB -Uri:'https://download.microsoft.com/download/D/1/3/D13E3150-3BB2-4B22-9D8A-47EE2D609FFF/Windows8.1-KB2999226-x64.msu' -KB:KB2999226 -ScriptBlock: {
-            Test-Path -Path:$env:SystemRoot\system32\ucrtbase.dll -PathType:Leaf
-        }
-        ## telemetry dependency (needed by Sense service)
-        Install-KB -Uri:'https://download.microsoft.com/download/4/E/8/4E864B31-7756-4639-8716-0379F6435016/Windows6.1-KB3080149-x64.msu' -KB:KB3080149 -ScriptBlock: {
-            if (Test-Path -Path:$env:SystemRoot\system32\Tdh.dll -PathType:Leaf) {
-                $verInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo("$env:SystemRoot\system32\Tdh.dll")
-                $fileVersion = New-Object -TypeName:System.Version -ArgumentList:$verInfo.FileMajorPart, $verInfo.FileMinorPart, $verInfo.FileBuildPart, $verInfo.FilePrivatePart
-                $minFileVersion = New-Object -TypeName:System.Version -ArgumentList:6, 3, 9600, 17958
-                return $fileVersion -ge $minFileVersion
+            ## ucrt dependency (needed by WinDefend service)
+            Install-KB -Uri:'https://download.microsoft.com/download/D/1/3/D13E3150-3BB2-4B22-9D8A-47EE2D609FFF/Windows8.1-KB2999226-x64.msu' -KB:KB2999226 -ScriptBlock: {
+                Test-Path -Path:$env:SystemRoot\system32\ucrtbase.dll -PathType:Leaf
             }
-            return $false
+            ## telemetry dependency (needed by Sense service)
+            Install-KB -Uri:'https://download.microsoft.com/download/4/E/8/4E864B31-7756-4639-8716-0379F6435016/Windows6.1-KB3080149-x64.msu' -KB:KB3080149 -ScriptBlock: {
+                if (Test-Path -Path:$env:SystemRoot\system32\Tdh.dll -PathType:Leaf) {
+                    $verInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo("$env:SystemRoot\system32\Tdh.dll")
+                    $fileVersion = New-Object -TypeName:System.Version -ArgumentList:$verInfo.FileMajorPart, $verInfo.FileMinorPart, $verInfo.FileBuildPart, $verInfo.FilePrivatePart
+                    $minFileVersion = New-Object -TypeName:System.Version -ArgumentList:6, 3, 9600, 17958
+                    return $fileVersion -ge $minFileVersion
+                }
+                return $false
+            }
+        } elseif ($osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 18362) {
+            # Server 2016 - Windows Defender is shipped with OS, need to check if inbox version is updatable and latest.
+            # Expectations are that 'Windows Defender Features' are installed and up-to-date
+            if ((Get-Service -Name:'WinDefend').Status -eq 'Running') {
+                $imageName = (Get-ItemPropertyValue -Path:'HKLM:\SYSTEM\CurrentControlSet\Services\WinDefend' -Name:ImagePath) -replace '"', ''
+                $currentVersion = Get-FileVersion -File:$imageName
+                if ($currentVersion -lt '4.18.0.0') {
+                    # this might require a restart, most likely current platform is 4.10.X.Y. This case should be
+                    # handled by running Windows Update.
+                    Write-Error 'Please update Windows Defender' -ErrorAction:Stop
+                }
+                $previousProgressPreference = $Global:ProgressPreference
+                try {
+                    $Global:ProgressPreference = 'SilentlyContinue'
+                    $uri = 'https://go.microsoft.com/fwlink/?linkid=870379&arch=x64'
+                    $latestVersion = ([xml]((Invoke-WebRequest -UseBasicParsing -Uri:"$uri&action=info").Content)).versions.platform
+                    if ($currentVersion -lt $latestVersion) {
+                        $tmpDir = Join-Path -Path:$env:TEMP ([guid]::NewGuid())
+                        $null = New-Item -Path:$tmpDir -ItemType:Directory
+                        $updatePlatform = Join-Path -Path:$tmpDir "UpdatePlatform.exe"
+                        Write-Host "Downloading latest UpdatePlatform.exe (version $latestVersion) from $uri"
+                        Invoke-WebRequest -UseBasicParsing -Uri:$uri -OutFile:$updatePlatform
+                        $status = (Get-AuthenticodeSignature -FilePath:$updatePlatform).Status
+                        if ($status -ne 'Valid') {
+                            Write-Error "Unexpected authenticode signature status($status) for $updatePlatform" -ErrorAction:Stop
+                        }
+                        $fileInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($updatePlatform)
+                        if ('UpdatePlatform.exe' -ne $fileInfo.InternalName -or 'Microsoft Malware Protection' -ne $fileInfo.ProductName) {
+                            Write-Error "Unexpected file: $updatePlatform, InternalName='$($fileInfo.InternalName)', ProductName='$($fileInfo.ProductName)'" -ErrorAction:Stop
+                        }
+                        Write-Host ("Running UpdatePlatform.exe (version {0})" -f (Get-FileVersion -File:$updatePlatform))
+                        $proc = Start-Process -FilePath:$updatePlatform -Wait -PassThru
+                        if ($proc.ExitCode -ne 0) {
+                            Write-Error "$updatePlatform failed with exitCode=$($proc.ExitCode)" -ErrorAction:Stop
+                        }
+                        $imageName = (Get-ItemPropertyValue -Path:'HKLM:\SYSTEM\CurrentControlSet\Services\WinDefend' -Name:ImagePath) -replace '"', ''
+                        $currentVersion = Get-FileVersion -File:$imageName
+                        if ($currentVersion -lt $latestVersion) {
+                            Write-Error "Current version is $currentVersion, expected to be at least $latestVersion" -ErrorAction:Stop
+                        }
+                        Write-Host "Current platform version is $currentVersion"
+                    }
+                } catch {
+                    throw
+                } finally {
+                    if ($null -ne $tmpDir -and (Test-Path -Path:$tmpDir -PathType:Container)) {
+                        Remove-Item -Path:$tmpDir -Force -Recurse -ErrorAction:SilentlyContinue
+                        if (Test-Path -Path:$tmpDir -PathType:Container) {
+                            Write-Warning "Could not remove $tmpDir, ignoring it."
+                        }
+                    }
+                    $Global:ProgressPreference = $previousProgressPreference
+                }
+            } else {
+                Write-Error "'WinDefend' service is not running. Please install 'Windows Defender Features'" -ErrorAction:Stop
+            }
+        } else {
+            Write-Error "Unsupported OS version: $osVersion" -ErrorAction:Stop
         }
     }
 
@@ -439,8 +506,8 @@ try {
 # SIG # Begin signature block
 # MIIhagYJKoZIhvcNAQcCoIIhWzCCIVcCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBMF23nGIkfRyI7
-# OKcnbGltAON7HuhWJBVxFhFfCTIVAaCCC14wggTrMIID06ADAgECAhMzAAAIMJFU
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDTlvJ+1YBCzhuj
+# toP902mrVcwuYpV/yLaBOn5X09f7J6CCC14wggTrMIID06ADAgECAhMzAAAIMJFU
 # sm0DDuykAAAAAAgwMA0GCSqGSIb3DQEBCwUAMHkxCzAJBgNVBAYTAlVTMRMwEQYD
 # VQQIEwpXYXNoaW5ndG9uMRAwDgYDVQQHEwdSZWRtb25kMR4wHAYDVQQKExVNaWNy
 # b3NvZnQgQ29ycG9yYXRpb24xIzAhBgNVBAMTGk1pY3Jvc29mdCBXaW5kb3dzIFBD
@@ -506,50 +573,50 @@ try {
 # IENvcnBvcmF0aW9uMSMwIQYDVQQDExpNaWNyb3NvZnQgV2luZG93cyBQQ0EgMjAx
 # MAITMwAACDCRVLJtAw7spAAAAAAIMDANBglghkgBZQMEAgEFAKCBrjAZBgkqhkiG
 # 9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3AgELMQ4wDAYKKwYBBAGCNwIB
-# FTAvBgkqhkiG9w0BCQQxIgQgC3kWX3NHsaLzIQZ8DCVjSn5dyoOaI9fLifyRgYdD
-# MrowQgYKKwYBBAGCNwIBDDE0MDKgFIASAE0AaQBjAHIAbwBzAG8AZgB0oRqAGGh0
-# dHA6Ly93d3cubWljcm9zb2Z0LmNvbTANBgkqhkiG9w0BAQEFAASCAQBLiegZ6tl+
-# 6hgF8+m6T9gnuReJpBvmxSOWiGWVWike1eTnwEWUfe/cv1mfBYzMEWI6R9y7PheS
-# cQPPZ24V0nN/eig/joje4vN/+l63xG3cpmP0Iuo5Ur/buwioO92EqXwbvbIjAtwI
-# vY8fZNH2nemx2DD7b6MsE8JvGABSD9ZHHNZBV8AA1naDpgEXqmnJG2RdJjzWd7+G
-# /Ezn+33bnHw904ygY+1ObGgcqQSCXbhkwbkTXPsWecEz/dCHI9uwSxhFX7MU0oTs
-# 71TiTIe0T47HJ7lMSFDuY3YN1ul4q/EwcC2LG1+t+H+Qr90SxYb8UCWZ9hoEwb/i
-# FmDGmKH50pMQoYIS8TCCEu0GCisGAQQBgjcDAwExghLdMIIS2QYJKoZIhvcNAQcC
+# FTAvBgkqhkiG9w0BCQQxIgQgrhDiH37Iaiff35KknzTbETsJPKfFx3ABcOjIQvyT
+# LmEwQgYKKwYBBAGCNwIBDDE0MDKgFIASAE0AaQBjAHIAbwBzAG8AZgB0oRqAGGh0
+# dHA6Ly93d3cubWljcm9zb2Z0LmNvbTANBgkqhkiG9w0BAQEFAASCAQBvW5d8B0dq
+# tscuX0iw2oSDb3SdNuPQwk5XdFZLRu5eWI2aivC82M1ZpYgwIi7Tgo2FCQYNl2c2
+# zI/eArz2oTXKCeLNjNdxB/mGNY2IfQKSHuOVlqQmkKi9Nkcdi+cU70J87deEA9wh
+# onIgclPhQJPGg8U9AjcHEkumQywA0CZTC1urpwlHzLUMYfzlyLkf2QWfni/xXydb
+# 6uV9Sq08q4cJY+GxnJXnJLj4ArU17+8Df3Nuqcf7jN68/LaMnA6SeHp9TsD8QEqU
+# fOVithNVzRpJr+PZH2QfJqeNRQTg1pjbh8iPER6V4OiBDEYvrdrNXtcfWOC87BoW
+# xEIElMyiqfG+oYIS8TCCEu0GCisGAQQBgjcDAwExghLdMIIS2QYJKoZIhvcNAQcC
 # oIISyjCCEsYCAQMxDzANBglghkgBZQMEAgEFADCCAVUGCyqGSIb3DQEJEAEEoIIB
-# RASCAUAwggE8AgEBBgorBgEEAYRZCgMBMDEwDQYJYIZIAWUDBAIBBQAEIN2PWlcs
-# SdhdgF4uYXNL8hREOvbgFRfOriLN36sYeKsbAgZhRNOLCYEYEzIwMjExMDA3MTkx
-# NTAwLjI3MlowBIACAfSggdSkgdEwgc4xCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpX
+# RASCAUAwggE8AgEBBgorBgEEAYRZCgMBMDEwDQYJYIZIAWUDBAIBBQAEIKHBBAQo
+# gGK4OdhaaJgaxcfmzoXxw9lu31WA8IaUiEGzAgZhRMUJ1IMYEzIwMjExMDA4MDgx
+# OTA3LjE4MVowBIACAfSggdSkgdEwgc4xCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpX
 # YXNoaW5ndG9uMRAwDgYDVQQHEwdSZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQg
 # Q29ycG9yYXRpb24xKTAnBgNVBAsTIE1pY3Jvc29mdCBPcGVyYXRpb25zIFB1ZXJ0
-# byBSaWNvMSYwJAYDVQQLEx1UaGFsZXMgVFNTIEVTTjo0NjJGLUUzMTktM0YyMDEl
+# byBSaWNvMSYwJAYDVQQLEx1UaGFsZXMgVFNTIEVTTjpGODdBLUUzNzQtRDdCOTEl
 # MCMGA1UEAxMcTWljcm9zb2Z0IFRpbWUtU3RhbXAgU2VydmljZaCCDkQwggT1MIID
-# 3aADAgECAhMzAAABWHBaIve+luYDAAAAAAFYMA0GCSqGSIb3DQEBCwUAMHwxCzAJ
+# 3aADAgECAhMzAAABY4tkxsmFlmV2AAAAAAFjMA0GCSqGSIb3DQEBCwUAMHwxCzAJ
 # BgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAwDgYDVQQHEwdSZWRtb25k
 # MR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xJjAkBgNVBAMTHU1pY3Jv
-# c29mdCBUaW1lLVN0YW1wIFBDQSAyMDEwMB4XDTIxMDExNDE5MDIxNFoXDTIyMDQx
-# MTE5MDIxNFowgc4xCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAw
+# c29mdCBUaW1lLVN0YW1wIFBDQSAyMDEwMB4XDTIxMDExNDE5MDIyM1oXDTIyMDQx
+# MTE5MDIyM1owgc4xCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAw
 # DgYDVQQHEwdSZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24x
 # KTAnBgNVBAsTIE1pY3Jvc29mdCBPcGVyYXRpb25zIFB1ZXJ0byBSaWNvMSYwJAYD
-# VQQLEx1UaGFsZXMgVFNTIEVTTjo0NjJGLUUzMTktM0YyMDElMCMGA1UEAxMcTWlj
+# VQQLEx1UaGFsZXMgVFNTIEVTTjpGODdBLUUzNzQtRDdCOTElMCMGA1UEAxMcTWlj
 # cm9zb2Z0IFRpbWUtU3RhbXAgU2VydmljZTCCASIwDQYJKoZIhvcNAQEBBQADggEP
-# ADCCAQoCggEBAKEfC5dg9auw0KAFGwv17yMFG8SfqgUUFC8Dzwa8mrps0eyhRQ2N
-# v9K7/sz/fVE1o/1fZp4q4SGitcsjPGtOnjWx45VIFTINQpdoOhmsPdnFy3gBXpMG
-# tTfXqLnnUE4+VmKC2vAhOZ06U6vt5Cc0cJoqEJtzOWRwEaz8BoX2nCX1RBXkH3Pi
-# Au7tWJv3V8zhRSPLFmeiJ+CIway04AUgmrwXEQHvJHgb6PiLCxgE2VABCDNT5CVy
-# ieNapcZiKx16QbDle7KOwkjMEIKkcxR+32dDMtzCtpIUDgrKxmjx+Gm94jHieohO
-# HUuhl3u3hlAYfv2SA/86T1UNAiBQg3Wu9xsCAwEAAaOCARswggEXMB0GA1UdDgQW
-# BBRLcNkbfZ0cGB/u536ge5Mn06L5WDAfBgNVHSMEGDAWgBTVYzpcijGQ80N7fEYb
+# ADCCAQoCggEBAK1xF/YSncl0YpL/qN2Fnfwjf0i8a+C4ELz5UZy3JOU54XH+rHv1
+# y3LgKYGu3wrtNSEY4Hz5z6PRlEJvv7aK2tm7WvFSes7iLFhQ08DV4hVx5zF6ll5u
+# N2ti2fJNZ6JDjMSVYuY/waYdNFo7N4l8x87/1STIob3PDiaqAoEZ1hEbmuRr44EK
+# P/3RDgo/AY0o01zAF4k5Hvyrfz03GaJIZ6EIIgbYbE6E2LX2cJZ963aNYPZLYVbN
+# nTviO7p2eGHtaAkn08QrzW9pz1aGCTUlDLRULnMiQVLNigaU1v8OTzv7alAInTlR
+# fFLvPIV0JJ2SPq+wVLxPGhiVswErX98/szUCAwEAAaOCARswggEXMB0GA1UdDgQW
+# BBQJNcrxdnJn7j8xWp9Gx5A+1989KTAfBgNVHSMEGDAWgBTVYzpcijGQ80N7fEYb
 # xTNoWoVtVTBWBgNVHR8ETzBNMEugSaBHhkVodHRwOi8vY3JsLm1pY3Jvc29mdC5j
 # b20vcGtpL2NybC9wcm9kdWN0cy9NaWNUaW1TdGFQQ0FfMjAxMC0wNy0wMS5jcmww
 # WgYIKwYBBQUHAQEETjBMMEoGCCsGAQUFBzAChj5odHRwOi8vd3d3Lm1pY3Jvc29m
 # dC5jb20vcGtpL2NlcnRzL01pY1RpbVN0YVBDQV8yMDEwLTA3LTAxLmNydDAMBgNV
 # HRMBAf8EAjAAMBMGA1UdJQQMMAoGCCsGAQUFBwMIMA0GCSqGSIb3DQEBCwUAA4IB
-# AQA53ygDWovQrh8fuliNXW0CUBTzfA4Sl4h+IPEh5lNdrhDFy6T4MA9jup1zzlFk
-# pYrUc0sTfQCAOnAjmunPgnmaS5bSf2VH8Mg34U2qgPLInMAkGaBs/BzabJ65YKe1
-# P5IKZN7Wj2bRfCK03ES8kS7g6YQH67ixMCQCLDreWDKJYsNs0chNpJOAzyJeGfyR
-# Ue+TUUbFwjsC/18KmYODVgpRSYZx0W7jrGqlJVEehuwpSIsGOYCBMnJDNdKnP+13
-# Cg68cVtCNX6kJdvUFH0ZiuPMlBYD7GrCPqARlSn+vxffMivu2DMJJLkeywxSfD52
-# sDV+NBf5IniuKFcE9y0m9m2jMIIGcTCCBFmgAwIBAgIKYQmBKgAAAAAAAjANBgkq
+# AQACiEGCB9eO4lPOjjICYfsTqam9IqdRtMj20UBBVLhufvP9xvloI8LZ9wOPq4sC
+# oJSdhMLawUWZd67vFlM/iBP+7Xkq109TaeQSE4Nc9ueM15flEvao4ZtzGoWTcxpC
+# +alYY0kVGIj6SxBSxnCkoZesT44WVITBQL/43PmHxVAFD0C1cDzza5nv1CSiDvnZ
+# 4qNxpP6af9IYfKbJB4bJxBq52FZVQqR4dA6Na7H4sThh1AY/qYc6kzmSphUvEzCq
+# 5xPZ8+TlsoNNZYz6TAR6qnefT2D/3Dsn7XmO+wNjIi6AEWQJHaqwB7R5OWO7QJ7p
+# 07Rl/4TvkNMzvZl8BBSfX7YjMIIGcTCCBFmgAwIBAgIKYQmBKgAAAAAAAjANBgkq
 # hkiG9w0BAQsFADCBiDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCldhc2hpbmd0b24x
 # EDAOBgNVBAcTB1JlZG1vbmQxHjAcBgNVBAoTFU1pY3Jvc29mdCBDb3Jwb3JhdGlv
 # bjEyMDAGA1UEAxMpTWljcm9zb2Z0IFJvb3QgQ2VydGlmaWNhdGUgQXV0aG9yaXR5
@@ -587,33 +654,33 @@ try {
 # AQEwgfyhgdSkgdEwgc4xCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9u
 # MRAwDgYDVQQHEwdSZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRp
 # b24xKTAnBgNVBAsTIE1pY3Jvc29mdCBPcGVyYXRpb25zIFB1ZXJ0byBSaWNvMSYw
-# JAYDVQQLEx1UaGFsZXMgVFNTIEVTTjo0NjJGLUUzMTktM0YyMDElMCMGA1UEAxMc
-# TWljcm9zb2Z0IFRpbWUtU3RhbXAgU2VydmljZaIjCgEBMAcGBSsOAwIaAxUAqckr
-# cxrn0Qshpuozjp+l+DSfNL+ggYMwgYCkfjB8MQswCQYDVQQGEwJVUzETMBEGA1UE
+# JAYDVQQLEx1UaGFsZXMgVFNTIEVTTjpGODdBLUUzNzQtRDdCOTElMCMGA1UEAxMc
+# TWljcm9zb2Z0IFRpbWUtU3RhbXAgU2VydmljZaIjCgEBMAcGBSsOAwIaAxUA7Sxg
+# Ht1J3SqTTSqzLcrMGZQBYe+ggYMwgYCkfjB8MQswCQYDVQQGEwJVUzETMBEGA1UE
 # CBMKV2FzaGluZ3RvbjEQMA4GA1UEBxMHUmVkbW9uZDEeMBwGA1UEChMVTWljcm9z
 # b2Z0IENvcnBvcmF0aW9uMSYwJAYDVQQDEx1NaWNyb3NvZnQgVGltZS1TdGFtcCBQ
-# Q0EgMjAxMDANBgkqhkiG9w0BAQUFAAIFAOUJr3MwIhgPMjAyMTEwMDcyMTQwMDNa
-# GA8yMDIxMTAwODIxNDAwM1owdzA9BgorBgEEAYRZCgQBMS8wLTAKAgUA5QmvcwIB
-# ADAKAgEAAgIbfAIB/zAHAgEAAgIREzAKAgUA5QsA8wIBADA2BgorBgEEAYRZCgQC
+# Q0EgMjAxMDANBgkqhkiG9w0BAQUFAAIFAOUKSY8wIhgPMjAyMTEwMDgwODM3MzVa
+# GA8yMDIxMTAwOTA4MzczNVowdzA9BgorBgEEAYRZCgQBMS8wLTAKAgUA5QpJjwIB
+# ADAKAgEAAgIZ6wIB/zAHAgEAAgIRYDAKAgUA5QubDwIBADA2BgorBgEEAYRZCgQC
 # MSgwJjAMBgorBgEEAYRZCgMCoAowCAIBAAIDB6EgoQowCAIBAAIDAYagMA0GCSqG
-# SIb3DQEBBQUAA4GBAFHxT8SraYOSTiDmZvWZe+eeRVAmvzlzM5UKJkTknii74UA2
-# sk/u+2pVwc6sbv7AV5TVbTTeOOlupGTj3nLbZP5YMk+DcTD9dNgSTYmDQ3ugKv52
-# rmuUZ4ioJiZcedkdhSTcX5NVRx29GeYXCurLLT8PMWeGx6YTTXhYp/54B6oZMYID
+# SIb3DQEBBQUAA4GBAGHMgCPWFu/ohw6d5D7Gtj3vap4gOd+6SwedtNmvIOxVEZYH
+# 910/L34NRtswbjpBuTAAuImpBP4X4jSZHw+VSR2RzY3r7WVw/ncJxvuea1EbBoEJ
+# JrDRAYzBK7VWfnx9356/POF70WXfmNVp1pCV6XiMRcr9RJIs1TjqtZ69FYABMYID
 # DTCCAwkCAQEwgZMwfDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCldhc2hpbmd0b24x
 # EDAOBgNVBAcTB1JlZG1vbmQxHjAcBgNVBAoTFU1pY3Jvc29mdCBDb3Jwb3JhdGlv
-# bjEmMCQGA1UEAxMdTWljcm9zb2Z0IFRpbWUtU3RhbXAgUENBIDIwMTACEzMAAAFY
-# cFoi976W5gMAAAAAAVgwDQYJYIZIAWUDBAIBBQCgggFKMBoGCSqGSIb3DQEJAzEN
-# BgsqhkiG9w0BCRABBDAvBgkqhkiG9w0BCQQxIgQgk3inwtP/aTQ7MlRSXqSNED2O
-# /uNb68ev51b3pcw2MxowgfoGCyqGSIb3DQEJEAIvMYHqMIHnMIHkMIG9BCDySjON
-# bIY1l2zKT4ba4sCI4WkBC6sIfR9uSVNVx3DTBzCBmDCBgKR+MHwxCzAJBgNVBAYT
+# bjEmMCQGA1UEAxMdTWljcm9zb2Z0IFRpbWUtU3RhbXAgUENBIDIwMTACEzMAAAFj
+# i2TGyYWWZXYAAAAAAWMwDQYJYIZIAWUDBAIBBQCgggFKMBoGCSqGSIb3DQEJAzEN
+# BgsqhkiG9w0BCRABBDAvBgkqhkiG9w0BCQQxIgQgIPcnc/wokhgHHUmTxX1KnDWI
+# AoKA4Ox4yE2OG735n54wgfoGCyqGSIb3DQEJEAIvMYHqMIHnMIHkMIG9BCCcWd2X
+# HaFjoSikKbi4y9AYBIpLBy9Rb16ns1GrEfQjajCBmDCBgKR+MHwxCzAJBgNVBAYT
 # AlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAwDgYDVQQHEwdSZWRtb25kMR4wHAYD
 # VQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xJjAkBgNVBAMTHU1pY3Jvc29mdCBU
-# aW1lLVN0YW1wIFBDQSAyMDEwAhMzAAABWHBaIve+luYDAAAAAAFYMCIEILJxe3Bo
-# RH28Rof0ga4I/iTywyRdatU7YCSZ0o8phvY2MA0GCSqGSIb3DQEBCwUABIIBAAfc
-# PWS03uF5RkRWucL7y1gXp566Piw5RxkNV16ljlHNFRuIo9vwMzrh61Xuh41W6Do1
-# PLELR6GM8XuOG+yyWpSs4w47u/SKiZjlflFQSJ3DjuxfmdpFzxiufn5RBzi3/oq0
-# 41Mpy8R71Ar+H5h0/V5t2ehARfUXIc/PsuDCAFrew/n5yeNAoOxfvPdmgsTqf2Tz
-# 9GQNMlMC25qRxQ2CnOB8N/FbuaBSgRmalfaxhSNAdjg2b+L+8e8acdI08pdcWrlY
-# 5hX4xjz9TL6dXmwK2IJPxSP5vNjQZ+EwCMWsgQG+Ia0ZyAnLDC17jUfGYRkwkMD5
-# A1ZM1Gf+U9WZGYVeq2c=
+# aW1lLVN0YW1wIFBDQSAyMDEwAhMzAAABY4tkxsmFlmV2AAAAAAFjMCIEIIMxNc0H
+# RI93jrZHzl9aZ7lMb185ROlSe1rRF2Gr+EPCMA0GCSqGSIb3DQEBCwUABIIBAAOO
+# VX4YW/4P1k1aOuIEdVKEbA+TNUqUNuFXTD7V46buM7cx5Txu+dUm0pchQ11OK418
+# sUitrDmP9Tk/Y+WfXPja1k7qmSqCzhAL0t00PIHdmAotbBBWGSjNyX44xQ/CfiOo
+# kRjMnZ9wTU0pRQh5VS0lmJgKBEGf3eXOTiwg+asePW++QhWHqmXedTAucyp9Jfz6
+# QWwXUvOxgtM62eR/CjSicqSeJnM9epOSpeRBFLAT9FdOUwyqJJ1+ca4Z9Zj8hV3s
+# Hzt58mORJRbWqmAeINrdedd31l7RrloWU9C4jAtr6BgzXkdyKcK+V90NJdQ05nlj
+# 6No/UEjlvCgUpmfjXf8=
 # SIG # End signature block
