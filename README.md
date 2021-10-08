@@ -13,6 +13,8 @@ On install scenario:
 4. Next, it installs the Microsoft Defender for Downlevel Servers MSI (md4ws.msi downloaded from the onboarding page for Windows Server 2012 R2 and 2016). If the file is in the same directory as the script, no input is required. If the product was already installed, it will perform a reinstallation with the provided MSI.
 5. Finally, it runs the onboarding script, if provided using the parameter **OnboardingScript**. Please use the script for Windows Server 2019 for **Group Policy** as it is non-interactive; the local onboarding script will fail.
 
+Updated October 10th 2021: The installer script now also checks for, downloads and installs the latest Defender Antivirus platform update on Windows Server 2016 to ensure the prerequisite is met.
+
 On uninstall scenario:
 1. It will run the offboarding script, if provided using the parameter **OffboardingScript**. Otherwise it is assumed that the machine is in an offboarded state. **NOTE: Uninstallation is only possible if the machine has been offboarded first.** Please use the script for Windows Server 2019 for **Group Policy** as it is non-interactive; the local onboarding script will fail.
 2. Uninstall the product.
