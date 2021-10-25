@@ -27,16 +27,19 @@ On uninstall scenario:
 **EXAMPLE 2**: Same as #1 except it will display the installer UI and enable more verbose logging for troubleshooting purposes.  
 ```.\Install.ps1 -UI -Log -Etl```  
 
-**EXAMPLE 3**: Perform uninstall steps 2 and 3.  
+**EXAMPLE 3**: Same as #2 except it will set Defender for Endpoint in Passive mode.  For more information on Passive mode, see [Need to set Microsoft Defender Antivirus to passive mode?](microsoft-defender-antivirus-on-windows-server.md#passive-mode-and-windows-server).
+```.\Install.ps1 -UI -Log -Etl -Passive```  
+
+**EXAMPLE 4**: Perform uninstall steps 2 and 3.  
 ```.\Install.ps1 -Uninstall```   
 
-**EXAMPLE 4**: Same as example #3 except with additional logging.  
+**EXAMPLE 5**: Same as example #3 except with additional logging.  
 ```.\Install.ps1 -Uninstall -Etl```  
 
-**EXAMPLE 5**: Fully automate (including optional OMS workspace removal) installation and onboarding. In this case, the onboarding script is located in the same directory as the installer script and the installation package (MSI). Substitute <WORKSPACE_ID> with the ID found on the onboarding page (for Windows Server 2008 R2) in your tenant.  
+**EXAMPLE 6**: Fully automate (including optional OMS workspace removal) installation and onboarding. In this case, the onboarding script is located in the same directory as the installer script and the installation package (MSI). Substitute <WORKSPACE_ID> with the ID found on the onboarding page (for Windows Server 2008 R2) in your tenant.  
 ```.\Install.ps1 -RemoveMMA <WORKSPACE_ID> -OnboardingScript ".\WindowsDefenderATPOnboardingScript.CMD"```  
 
-**EXAMPLE 6**: Offboard then uninstall the MSI.  
+**EXAMPLE 7**: Offboard then uninstall the MSI.  
 ```.\Install.ps1 -Uninstall -OffboardingScript ".\WindowsDefenderATPOffboardingScript.CMD"```
 
 ## Contributing
