@@ -27,7 +27,7 @@ On uninstall scenario:
 **EXAMPLE 2**: Same as #1 except it will display the installer UI and enable more verbose logging for troubleshooting purposes.  
 ```.\Install.ps1 -UI -Log -Etl```  
 
-**EXAMPLE 3**: Same as #2 except it will set Defender Antivirus to not become the active antimalware immediately after installation to avoid interference with non-Microsoft antimalware solutions before onboarding. Make sure to set the "ForceDefenderPassiveMode" registry key on all servers where you wish to run protection capabilities in passive mode  after onboarding.  For more information on Passive mode, see [Need to set Microsoft Defender Antivirus to passive mode?](https://docs.microsoft.com/en-us/microsoft-365/security/defender-endpoint/microsoft-defender-antivirus-on-windows-server?#passive-mode-and-windows-server)
+**EXAMPLE 3**: Same as #2 except it will set Defender Antivirus to not become the active antimalware immediately after installation to avoid interference with non-Microsoft antimalware solutions before onboarding. Make sure to set the "ForceDefenderPassiveMode" registry key on all servers where you wish to run protection capabilities in passive mode after onboarding. For more information on Passive mode, see [Need to set Microsoft Defender Antivirus to passive mode?](https://docs.microsoft.com/en-us/microsoft-365/security/defender-endpoint/microsoft-defender-antivirus-on-windows-server?#passive-mode-and-windows-server)
 
 ```.\Install.ps1 -UI -Log -Etl -Passive```  
 
