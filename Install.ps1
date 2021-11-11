@@ -33,6 +33,9 @@ param(
     ## Path to onboarding script (required by WD-ATP)
     [string] $OnboardingScript,    
     [Parameter(ParameterSetName = 'install')]
+    ## Path to the MDE Unified Agent's MSI file.  Default to same location as the script.
+    [string] $UnifiedAgentInstallerPath = $PSScriptRoot,
+    [Parameter(ParameterSetName = 'install')]
     ## Installs devmode msi instead of the realeased one
     [switch] $DevMode,
     [Parameter(ParameterSetName = 'uninstall', Mandatory)]
@@ -96,12 +99,17 @@ function Test-IsAdministrator {
 
 $osVersion = [environment]::OSVersion.Version.ToString()
 
-$msi = if ((-not $DevMode.IsPresent) -and (Test-Path -Path $PSScriptRoot\md4ws.msi)) {
-    Join-Path -Path:$PSScriptRoot "md4ws.msi"
-} else {
+# Update to use Script Parameter 'UnifiedAgentInstallerPath' to allow for specification of the installer path rather than 
+# defaulting to script's root folder location. Added check to see if the Dev Mode is intended and check the installer file 
+# exists in the specified path. Added failure condition so if MSI is not found the script writes an error and stops.
+$msi = if((-not $DevMode.IsPresent) -and (Test-Path -Path $UnifiedAgentInstallerPath\md4ws.msi)) {
+    Join-Path -Path:$UnifiedAgentInstallerPath "md4ws.msi"
+} elseif(($DevMode.IsPresent) -and (Test-Path -Path $UnifiedAgentInstallerPath\md4ws-devmode.msi)) {
     $Etl = $true
     $Log = $true
-    Join-Path -Path:$PSScriptRoot "md4ws-devmode.msi"
+    Join-Path -Path:$UnifiedAgentInstallerPath "md4ws-devmode.msi"
+} else {
+    Write-Error "Unable to find the installer or dev installer at path provided:$UnifiedAgentInstallerPath" -ErrorAction:Stop
 }
 
 $action = if ($Uninstall.IsPresent) { 'uninstall' }  else { 'install' }
