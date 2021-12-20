@@ -436,7 +436,7 @@ try {
         if (-not (Test-Path -Path:$msi -PathType:leaf)) {
             Write-Error "$msi does not exist." -ErrorAction:Stop
         }
-        @('/i', $msi)
+        @('/i', """$msi""")
     } else {
         if ($null -eq $uninstallGUID) {
             Write-Error "'$displayName' already uninstalled." -ErrorAction:Stop
