@@ -2,6 +2,8 @@
 
 This repository is used to host the PowerShell install and upgrade helper script (install.ps1) for the modern, unified Microsoft Defender for Endpoint installer package for Windows Server 2012 R2 and Windows Server 2016. This script is not intended for use with Microsoft Defender for Cloud as currently, when using the preview solution, alert and TVM integration does not work. For more information, please go to https://docs.microsoft.com/microsoft-365/security/defender-endpoint/server-migration?view=o365-worldwide.
 
+Always use the latest available package, downloaded from the onboarding section of the Defender for Endpoint portal, for new installations. Some of the functionality contained in the script can depend on changes introduced in the package.
+
 SYNOPSIS  
 Helper script for installing/uninstalling Microsoft Defender for Downlevel Servers.
 
@@ -14,7 +16,7 @@ On install scenario:
 5. Finally, it runs the onboarding script, if provided using the parameter **OnboardingScript**. Please use the script for **Group Policy** as it is non-interactive; the local onboarding script will fail.
 
 On uninstall scenario:
-1. It will run the offboarding script, if provided using the parameter **OffboardingScript**. Otherwise it is assumed that the machine is in an offboarded state. **NOTE: Uninstallation is only possible if the machine has been offboarded first.** Please use the script for Windows Server 2019 for **Group Policy** as it is non-interactive; the local onboarding script will fail.
+1. It will run the offboarding script, if provided using the parameter **OffboardingScript**. Otherwise it is assumed that the machine is in an offboarded state. **NOTE: Uninstallation is only possible if the machine has been offboarded first.** Please use the script for Windows Server 2019 for **Group Policy** as it is non-interactive; the local offboarding script will fail.
 2. Uninstall the product.
 3. Removes the Defender Powershell module, if it was loaded inside current Powershell session.
 
