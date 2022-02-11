@@ -7,13 +7,11 @@ Helper script for installing/uninstalling Microsoft Defender for Downlevel Serve
 
 DESCRIPTION  
 On install scenario:
-1. It removes the OMS workspace when the workspace ID is provided with the parameter **RemoveMMA**. **NOTE: this step is for cleanup purposes only. **.
-2. The next step uninstalls SCEP - if it is present.
-3. Then, it checks for prerequisites and downloads and installs two hotfixes on Windows Server 2012 R2 if the prerequisites have not been met, and updates to the latest platform version on Windows Server 2016 if required (currently installed platform version must already be 4.18.2001.10 or higher). Note that on machines that have received recent monthly update rollup packages, the prerequisites will have been met and this step is NOT needed.
+1. It removes the OMS workspace when the workspace ID is provided with the parameter **RemoveMMA**. **NOTE: this step is for cleanup purposes only. **. ****When installing the new package, the previous sensor will stop running and the workspace is no longer used. You may however still need the MMA for other workspaces/functionality such as OMS, Log Analytics.  ****
+2. The next step uninstalls SCEP - if it is present, and only on Windows Server 2012 R2 (on Windows Server 2016, SCEP is only a management component and is not required).
+3. Then, it checks for prerequisites and downloads and installs two hotfixes on Windows Server 2012 R2 if the prerequisites have not been met, and updates to the latest platform version on Windows Server 2016 if required (NOTE: Defender must be in an upgradeable state, this requires at least one servicing stack and cumulative update to have been applied). Note that on machines that have received recent monthly update rollup packages, the prerequisites will have been met and this step is NOT needed.
 4. Next, it installs the Microsoft Defender for Downlevel Servers MSI (md4ws.msi downloaded from the onboarding page for Windows Server 2012 R2 and 2016). If the file is in the same directory as the script, no input is required. If the product was already installed, it will perform a reinstallation with the provided MSI.
-5. Finally, it runs the onboarding script, if provided using the parameter **OnboardingScript**. Please use the script for Windows Server 2019 for **Group Policy** as it is non-interactive; the local onboarding script will fail.
-
-Updated October 10th 2021: The installer script now also checks for, downloads and installs the latest Defender Antivirus platform update on Windows Server 2016 to ensure the prerequisite is met.
+5. Finally, it runs the onboarding script, if provided using the parameter **OnboardingScript**. Please use the script for **Group Policy** as it is non-interactive; the local onboarding script will fail.
 
 On uninstall scenario:
 1. It will run the offboarding script, if provided using the parameter **OffboardingScript**. Otherwise it is assumed that the machine is in an offboarded state. **NOTE: Uninstallation is only possible if the machine has been offboarded first.** Please use the script for Windows Server 2019 for **Group Policy** as it is non-interactive; the local onboarding script will fail.
