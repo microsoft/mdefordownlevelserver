@@ -1,0 +1,16 @@
+**Workaround for a known issue with TelemetryProxyServer on disconnected machines running Sense version 10.8048.22439.1065**
+
+Problem description:
+When using the TelemetryProxyServer setting to specify a proxy to be used by the EDR component of Microsoft Defender for Endpoint, on machines that have no other way to access the Certificate Revocation List (CRL) URL, a missing intermediate certificate will cause the EDR sensor to not successfully connect to the cloud service.
+
+Affected versions:
+-Microsoft Defender for Endpoint with Sense version number 10.8048.22439.1065 or earlier preview versions
+-Running on Windows Server 2012 R2
+
+Workaround:
+1. Ensure the machine is running Sense version 10.8048.22439.1065 or higher by either installing using the latest package available from the onboarding page, or by applying KB5005292.
+2. Download and unzip the certificate from https://github.com/microsoft/mdefordownlevelserver/blob/main/InterCA.zip
+3. Import the certificate to the Local Computer trusted “Intermediate Certification Authorities” store.
+You can use the command:
+Import-Certificate -FilePath .\InterCA.cer -CertStoreLocation Cert:\LocalMachine\Ca
+3. Check the “SENSE” event log and ensure that the machine has authenticated with cloud and is able to receive proper configuration through the CnC channel.
