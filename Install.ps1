@@ -370,6 +370,7 @@ try {
                     $Global:ProgressPreference = 'SilentlyContinue'
                     $uri = 'https://go.microsoft.com/fwlink/?linkid=870379&arch=x64'
                     $latestVersion = ([xml]((Invoke-WebRequest -UseBasicParsing -Uri:"$uri&action=info").Content)).versions.platform
+                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
                     if ($currentVersion -lt $latestVersion) {
                         $tmpDir = Join-Path -Path:$env:TEMP ([guid]::NewGuid())
                         $null = New-Item -Path:$tmpDir -ItemType:Directory
