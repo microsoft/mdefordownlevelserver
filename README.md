@@ -1,6 +1,6 @@
 # Project
 
-This repository is used to host the PowerShell install and upgrade helper script (install.ps1) for the modern, unified Microsoft Defender for Endpoint installer package for Windows Server 2012 R2 and Windows Server 2016. This script is not intended for use with Microsoft Defender for Cloud as currently, when using the preview solution, alert and TVM integration does not work. For more information, please go to https://docs.microsoft.com/microsoft-365/security/defender-endpoint/server-migration?view=o365-worldwide.
+This repository is used to host the PowerShell install and upgrade helper script (install.ps1) for the modern, unified Microsoft Defender for Endpoint installer package for Windows Server 2012 R2 and Windows Server 2016. For deployment and upgrades with Microsoft Defender for servers through Microsoft Defender for Cloud pleases reference https://docs.microsoft.com/en-us/azure/defender-for-cloud/integration-defender-for-endpoint?tabs=windows#enable-the-integration. For more information about other migration scenarios, please visit https://docs.microsoft.com/microsoft-365/security/defender-endpoint/server-migration?view=o365-worldwide.
 
 Always use the latest available package, downloaded from the onboarding section of the Defender for Endpoint portal, for new installations. Some of the functionality contained in the script can depend on changes introduced in the package.
 
@@ -11,7 +11,7 @@ DESCRIPTION
 On install scenario:
 1. It can remove the OMS workspace when the workspace ID is provided with the parameter **RemoveMMA**. **NOTE: this step is for cleanup purposes only**. ****When installing the new package, the previous sensor will stop running and the workspace is no longer used. You may however still need the MMA for other workspaces/functionality such as OMS, Log Analytics.  ****
 2. The next step uninstalls SCEP - if it is present, and only on Windows Server 2012 R2 (on Windows Server 2016, SCEP is only a management component and is not required).
-3. Then, it checks for prerequisites and downloads and installs two hotfixes on Windows Server 2012 R2 if the prerequisites have not been met (files are not found)
+3. Then, it checks for prerequisites and downloads and installs two hotfixes on Windows Server 2012 R2 if the prerequisites have not been met (files are not found).
 4. If Defender is not running on Windows Server 2016, it will attempt to activate it. If the feature is not installed, it attempts to enable the feature. If this requires a reboot, the script will stop; please reboot and run again to continue.
 5. If Defender is installed and running but outdated, it updates to the latest platform version on Windows Server 2016 if required (NOTE: Defender must be in an upgradeable state, this requires at least one servicing stack and cumulative update to have been applied). If you have placed updateplatform.exe in the same directory, the script can use this in case the download location is not accessible.
 6. Next, it installs the Microsoft Defender for Downlevel Servers MSI (md4ws.msi downloaded from the onboarding page for Windows Server 2012 R2 and 2016). If the file is in the same directory as the script, no input is required. If the product was already installed, it will attempt to perform a reinstallation with the provided MSI, but only if the machine is not in an onboarded state.
