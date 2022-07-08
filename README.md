@@ -1,6 +1,6 @@
 # Project
 
-This repository is used to host the PowerShell install and upgrade helper script (install.ps1) for the modern, unified Microsoft Defender for Endpoint installer package for Windows Server 2012 R2 and Windows Server 2016. For deployment and upgrades with Microsoft Defender for servers through Microsoft Defender for Cloud pleases reference https://docs.microsoft.com/en-us/azure/defender-for-cloud/integration-defender-for-endpoint?tabs=windows#enable-the-integration. For more information about other migration scenarios, please visit https://docs.microsoft.com/microsoft-365/security/defender-endpoint/server-migration?view=o365-worldwide.
+This repository is used to host the PowerShell install and upgrade helper script (install.ps1) for the modern, unified Microsoft Defender for Endpoint installer package for Windows Server 2012 R2 and Windows Server 2016. For deployment and upgrades with Microsoft Defender for servers through Microsoft Defender for Cloud please reference https://docs.microsoft.com/en-us/azure/defender-for-cloud/integration-defender-for-endpoint?tabs=windows#enable-the-integration. For more information about other migration scenarios, including through SCCM/MECM, please visit https://docs.microsoft.com/microsoft-365/security/defender-endpoint/server-migration?view=o365-worldwide.
 
 Always use the latest available package, downloaded from the onboarding section of the Defender for Endpoint portal, for new installations. Some of the functionality contained in the script can depend on changes introduced in the package.
 
