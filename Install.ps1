@@ -156,14 +156,14 @@ function Measure-Process {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
-        [ValidateScript( { Test-Path -Path:$_ -PathType:Leaf })]
+        [ValidateScript( { Test-Path -LiteralPath:$_ -PathType:Leaf })]
         [string] $FilePath,
 
         [AllowEmptyString()]
         [AllowEmptyCollection()]
         [string[]] $ArgumentList,
         [switch] $PassThru,
-        [ValidateScript( { Test-Path -Path:$_ -PathType:Container })]
+        [ValidateScript( { Test-Path -LiteralPath:$_ -PathType:Container })]
         [string] $WorkingDirectory = (Get-Location).Path,
         [uint16] $SkipFrames = 3)
 
@@ -194,7 +194,7 @@ function Measure-Process {
             Get-Content -Path $startParams.RedirectStandardError | ForEach-Object {
                 Trace-Message "[StandardError]: $_" -Date:$info.ExitTime -SkipFrames:$(1 + $SkipFrames)
             }
-            $commandLine = $(Split-Path $FilePath -Leaf)
+            $commandLine = $(Split-Path -Path:$FilePath -Leaf)
             if ($ArgumentList) {
                 $commandLine += " $ArgumentList"
             }
@@ -211,8 +211,8 @@ function Measure-Process {
     } catch {
         throw
     } finally {
-        Remove-Item -Path:$startParams.RedirectStandardError.FullName -Force -ErrorAction:SilentlyContinue
-        Remove-Item -Path:$startParams.RedirectStandardOutput.FullName -Force -ErrorAction:SilentlyContinue
+        Remove-Item -LiteralPath:$startParams.RedirectStandardError.FullName -Force -ErrorAction:SilentlyContinue
+        Remove-Item -LiteralPath:$startParams.RedirectStandardOutput.FullName -Force -ErrorAction:SilentlyContinue
     }
     if ($PassThru) {
         return $info.ExitCode
@@ -240,18 +240,13 @@ function Get-GuidHelper {
         # Parameter help description
         [Parameter(Mandatory)] [string] $Name,
         [Parameter(Mandatory)] [string] $Value,
-        [Parameter(Mandatory)] [string] $Path,
+        [Parameter(Mandatory)] [string] $LiteralPath,
         [Parameter(Mandatory)] [string] $Pattern
     )
     ## guids are regenerated every time we change .wx{i,s} files
     ## @note: SilentlyContinue just in case $Path does not exist.
-    $result = @(Get-ChildItem -Path:$Path -ErrorAction:SilentlyContinue |
-        ForEach-Object {
-            Get-ItemProperty $_.PSPath
-        } | 
-        Where-Object {
-            $_.$Name -match $Value -and $_.PSChildName -match $Pattern
-        } | 
+    $result = @(Get-ChildItem -LiteralPath:$LiteralPath -ErrorAction:SilentlyContinue |
+        Where-Object { $_.GetValue($Name) -match $Value -and $_.PSChildName -match $Pattern } |
         Select-Object -ExpandProperty:PSChildName)
     if ($result.Count -eq 1) {
         return $result[0]
@@ -268,7 +263,7 @@ function Get-UninstallGuid {
     $extraParams = @{
         Name        = 'DisplayName'
         Value       = $DisplayName
-        Path        = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
+        LiteralPath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
         Pattern     = '^{[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}}$'
     }
     
@@ -289,7 +284,7 @@ function Get-CodeSQUID {
     $extraParams = @{
         Name        = 'ProductName'
         Value       = $ProductName
-        Path        = 'HKCR:\Installer\Products'
+        LiteralPath = 'HKCR:\Installer\Products'
         Pattern     = '^[0-9a-f]{32}$'
     }
     
@@ -402,11 +397,11 @@ function Test-ExternalScripts {
     [CmdletBinding()]
     param ()
     if ($OnboardingScript.Length) {
-        if (-not (Test-Path -Path:$OnboardingScript -PathType:Leaf)) {
+        if (-not (Test-Path -LiteralPath:$OnboardingScript -PathType:Leaf)) {
             Exit-Install -Message:"$OnboardingScript does not exist" -ExitCode:$ERR_ONBOARDING_NOT_FOUND
         }       
         ## validate it is an "onboarding" script.
-        $on = Get-Content -Path:$OnboardingScript | Where-Object {
+        $on = Get-Content -LiteralPath:$OnboardingScript | Where-Object {
             $_ -match 'reg\s+add\s+"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Advanced Threat Protection"\s+\/v\s+OnboardingInfo'
         }
         if ($on.Length -eq 0) {
@@ -419,11 +414,11 @@ function Test-ExternalScripts {
     }
 
     if ($OffboardingScript.Length) {
-        if (-not (Test-Path -Path:$OffboardingScript -PathType:Leaf)) {
+        if (-not (Test-Path -LiteralPath:$OffboardingScript -PathType:Leaf)) {
             Exit-Install -Message:"$OffboardingScript does not exist" -ExitCode:$ERR_OFFBOARDING_NOT_FOUND
         }
 
-        $off = Get-Content -Path:$OffboardingScript | Where-Object {
+        $off = Get-Content -LiteralPath:$OffboardingScript | Where-Object {
             $_ -match 'reg\s+add\s+"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Advanced Threat Protection"\s+\/v\s+696C1FA1-4030-4FA4-8713-FAF9B2EA7C0A'
         }
         
@@ -439,10 +434,10 @@ function Test-ExternalScripts {
 
 function Get-RegistryKey {
     [CmdLetBinding()]
-    param([Parameter(Mandatory = $true)][string] $Path,
-        [Parameter(Mandatory = $true)][string] $Name)
+    param([Parameter(Mandatory)][string] $LiteralPath,
+        [Parameter(Mandatory)][string] $Name)
 
-    $k = Get-ItemProperty -Path:$Path -Name:$Name -ErrorAction SilentlyContinue
+    $k = Get-ItemProperty -LiteralPath:$LiteralPath -Name:$Name -ErrorAction SilentlyContinue
     if ($k) {
         return $k.$Name
     }
@@ -457,7 +452,7 @@ function Invoke-MpCmdRun {
         [uint16] $SkipFrames = 4
     )
     $startParams = @{
-        FilePath   = Join-Path -Path:$(Get-RegistryKey -Path:'HKLM:\SOFTWARE\Microsoft\Windows Defender' -Name:'InstallLocation') 'MpCmdRun.exe'
+        FilePath   = Join-Path -Path:$(Get-RegistryKey -LiteralPath:'HKLM:\SOFTWARE\Microsoft\Windows Defender' -Name:'InstallLocation') 'MpCmdRun.exe'
         SkipFrames = $SkipFrames
     }   
     if ($ArgumentList) {
@@ -523,11 +518,11 @@ $logBase = "$action-$env:COMPUTERNAME-$osVersion"
 
 ## make sure $PSSCriptRoot is writable. 
 $tempFile = Join-Path -Path:$PSScriptRoot "$([guid]::NewGuid().Guid).tmp"
-Set-Content -Path:$tempFile -Value:'' -ErrorAction:SilentlyContinue
-if (-not (Test-Path -Path:$tempFile -PathType:Leaf)) {
+Set-Content -LiteralPath:$tempFile -Value:'' -ErrorAction:SilentlyContinue
+if (-not (Test-Path -LiteralPath:$tempFile -PathType:Leaf)) {
     Exit-Install "Cannot create $tempFile. Is $PSScriptRoot writable?" -ExitCode:$ERR_DIRECTORY_NOT_WRITABLE
 } else {
-    Remove-Item -Path:$tempFile -ErrorAction:SilentlyContinue
+    Remove-Item -LiteralPath:$tempFile -ErrorAction:SilentlyContinue
     $tempFile = $null
 }
 
@@ -549,33 +544,33 @@ if ($etl) {
         $etlparams.EnableNetworkAccess = $true
     }
 
-    if (Test-Path -Path:$etlLog -PathType:leaf) {
-        if (Test-Path -Path:"$PSScriptRoot\$logBase.prev.etl") {
-            Remove-Item -Path:"$PSScriptRoot\$logBase.prev.etl" -ErrorAction:Stop
+    if (Test-Path -LiteralPath:$etlLog -PathType:leaf) {
+        if (Test-Path -LiteralPath:"$PSScriptRoot\$logBase.prev.etl") {
+            Remove-Item -LiteralPath:"$PSScriptRoot\$logBase.prev.etl" -ErrorAction:Stop
         }
-        Rename-Item -Path:$etlLog -NewName:"$logBase.prev.etl" -ErrorAction:Stop
+        Rename-Item -LiteralPath:$etlLog -NewName:"$logBase.prev.etl" -ErrorAction:Stop
     }
 
     Invoke-Command @etlparams -ScriptBlock: {
         param($ScriptRoot, $logBase, $wdprov, $tempFile, $etlLog, $wppTracingLevel, $reportingPath);
         function Set-RegistryKey {
             [CmdletBinding()]
-            param([Parameter(Mandatory)][string] $Path,
+            param([Parameter(Mandatory)][string] $LiteralPath,
                 [Parameter(Mandatory)][string] $Name,
                 [Parameter(Mandatory)][object] $Value)
 
             function Set-ContainerPath {
                 [CmdletBinding()]
-                param([Parameter(Mandatory)][string] $Path)
-                if (!(Test-Path -Path:$Path -PathType:Container)) {
-                    $parent = Split-Path -Path:$Path -Parent
-                    Set-ContainerPath -Path:$parent
-                    $leaf = Split-Path -Path:$Path -Leaf
+                param([Parameter(Mandatory)][string] $LiteralPath)
+                if (!(Test-Path -LiteralPath:$LiteralPath -PathType:Container)) {
+                    $parent = Split-Path -Path:$LiteralPath -Parent
+                    Set-ContainerPath -LiteralPath:$parent
+                    $leaf = Split-Path -Path:$LiteralPath -Leaf
                     $null = New-Item -Path:$parent -Name:$leaf -ItemType:Directory
                 }
             }   
-            Set-ContainerPath -Path:$Path
-            Set-ItemProperty -Path:$Path -Name:$Name -Value:$Value
+            Set-ContainerPath -LiteralPath:$LiteralPath
+            Set-ItemProperty -LiteralPath:$LiteralPath -Name:$Name -Value:$Value
         }
 
         ## enable providers
@@ -598,23 +593,23 @@ if ($etl) {
             @{Guid = '942bda7f-e07d-5a00-96d3-92f5bcb7f377'; Flags = 0xff; Level = 0x1f; Name = 'mpextms' },
             @{Guid = 'bc4992b8-a44c-4f70-834b-9d45df9b1824'; Flags = 0xff; Level = 0x1f; Name = 'WdDevFlt' }
         )
-        Set-Content -Path:$wdprov -Value:"# {PROVIDER_GUID}<space>FLAGS<space>LEVEL" -Encoding:ascii
+        Set-Content -LiteralPath:$wdprov -Value:"# {PROVIDER_GUID}<space>FLAGS<space>LEVEL" -Encoding:ascii
         $providers | ForEach-Object {
             # Any line that starts with '#','*',';' is commented out
             # '-' in front of a provider disables it.
             # {PROVIDER_GUID}<space>FLAGS<space>LEVEL
-            Add-Content -Path:$wdprov -Value:("{{{0}}} {1} {2}" -f $_.Guid, $_.Flags, $_.Level) -Encoding:ascii
+            Add-Content -LiteralPath:$wdprov -Value:("{{{0}}} {1} {2}" -f $_.Guid, $_.Flags, $_.Level) -Encoding:ascii
         }        
         
         try {
             & logman.exe create trace -n $logBase -pf $wdprov -ets -o $tempFile *>$null
             ## this fails when 'Windows Defender' is already running.
-            Set-RegistryKey -Path:$reportingPath -Name:$wppTracingLevel -Value:0 -ErrorAction:SilentlyContinue
+            Set-RegistryKey -LiteralPath:$reportingPath -Name:$wppTracingLevel -Value:0 -ErrorAction:SilentlyContinue
             Trace-Message "Tracing session '$logBase' started."
         } catch {
             throw
         } finally {
-            Remove-Item -Path:$wdprov -ErrorAction:Continue
+            Remove-Item -LiteralPath:$wdprov -ErrorAction:Continue
         }
     }
 }
@@ -641,11 +636,11 @@ try {
     }
     
     $msiLog = "$PSScriptRoot\$logBase.log"    
-    if ($log -and (Test-Path -Path:$msiLog -PathType:Leaf)) {
-        if (Test-Path -Path:"$PSScriptRoot\$logBase.prev.log") {
-            Remove-Item -Path:"$PSScriptRoot\$logBase.prev.log" -ErrorAction:Stop
+    if ($log -and (Test-Path -LiteralPath:$msiLog -PathType:Leaf)) {
+        if (Test-Path -LiteralPath:"$PSScriptRoot\$logBase.prev.log") {
+            Remove-Item -LiteralPath:"$PSScriptRoot\$logBase.prev.log" -ErrorAction:Stop
         }
-        Rename-Item -Path:$msiLog -NewName:"$PSScriptRoot\$logBase.prev.log"
+        Rename-Item -LiteralPath:$msiLog -NewName:"$PSScriptRoot\$logBase.prev.log"
     }
     
     ## The new name is 'Microsoft Defender for Endpoint' - to avoid confusions on Server 2016.
@@ -653,20 +648,8 @@ try {
     $uninstallGUID = Get-UninstallGuid -DisplayName:$displayName
     
     if ($action -eq 'install') {
-        $buildLabEx = Get-RegistryKey -Path:'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name:'BuildLabEx'
+        $buildLabEx = Get-RegistryKey -LiteralPath:'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name:'BuildLabEx'
         Trace-Message "BuildLabEx: $buildLabEx"
-        try {
-            $hotfix = @(Get-HotFix | Sort-Object -Property:InstalledOn)
-            Trace-Message "There are $($hotFix.Count) KBs installed."
-            if ($hotfix.Count -gt 0) {
-                $lastHotfix = $hotfix[-1]
-                Trace-Message "$($lastHotFix.HotFixID) was installed on $($lastHotfix.InstalledOn)"
-            }
-        } catch {
-            # simply ignore it - 'InstalledOn' field is supposed to be a DateTime, unfortunatelly
-            # on some systems it could be a 64 bit value, empty or any string that can't be converted
-            # to DateTime therefore this catch.
-        }
         if ($osVersion.Major -eq 6 -and $osVersion.Minor -eq 3) {
             $windefend = Get-Service -Name:'WinDefend' -ErrorAction:SilentlyContinue
             $wdnissvc = Get-Service -Name:'WdNisSvc' -ErrorAction:SilentlyContinue
@@ -676,7 +659,7 @@ try {
                 if ($windefend.Status -eq 'Running') {
                     Exit-Install "Please reboot this computer to remove 'WinDefend' Service" -ExitCode:$ERR_PENDING_REBOOT
                 } elseif ($windefend.Status -eq 'Stopped') {
-                    Remove-Item -Path:'HKLM:\SYSTEM\CurrentControlSet\Services\WinDefend' -Force -Recurse -ErrorAction:Stop
+                    Remove-Item -LiteralPath:'HKLM:\SYSTEM\CurrentControlSet\Services\WinDefend' -Force -Recurse -ErrorAction:Stop
                     Exit-Install "Please restart this machine to complete 'WinDefend' service removal" -ExitCode:$ERR_PENDING_REBOOT
                 } else {
                     Exit-Install -Message:"Unexpected WinDefend service status: $($windefend.Status)" -ExitCode:$ERR_UNEXPECTED_STATE
@@ -685,8 +668,8 @@ try {
 
             ## SCEP is different on Server 2016.
             $path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Security Client"        
-            if (Test-Path -Path:$path) {
-                $displayName = (Get-ItemProperty -Path:$path -Name:'DisplayName').DisplayName
+            if (Test-Path -LiteralPath:$path) {
+                $displayName = (Get-ItemProperty -LiteralPath:$path -Name:'DisplayName').DisplayName
                 # See camp\src\amcore\Antimalware\Source\AppLayer\Components\Distribution\Common\CmdLineParser.h
                 $exitCode = Measure-Process -FilePath:"$env:ProgramFiles\Microsoft Security Client\Setup.exe" -ArgumentList:@('/u', '/s') -PassThru
                 if (0 -eq $exitCode) {
@@ -733,9 +716,9 @@ try {
                     throw
                 } finally {
                     $ProgressPreference = $PreviousProgressPreference
-                    if (Test-Path -Path:$outFile -PathType:Leaf) {
+                    if (Test-Path -LiteralPath:$outFile -PathType:Leaf) {
                         Trace-Message "Removing $outFile"
-                        Remove-Item -Path:$outFile -Force -ErrorAction:SilentlyContinue
+                        Remove-Item -LiteralPath:$outFile -Force -ErrorAction:SilentlyContinue
                     }
                 }
             }
@@ -753,7 +736,7 @@ try {
             ## ucrt dependency (needed by WinDefend service) - see https://www.microsoft.com/en-us/download/confirmation.aspx?id=49063
             Install-KB -Uri:'https://download.microsoft.com/download/D/1/3/D13E3150-3BB2-4B22-9D8A-47EE2D609FFF/Windows8.1-KB2999226-x64.msu' -KB:KB2999226 -ScriptBlock: {
                 $ucrtbaseDll = "$env:SystemRoot\system32\ucrtbase.dll"
-                if (Test-Path -Path:$ucrtbaseDll -PathType:Leaf) {
+                if (Test-Path -LiteralPath:$ucrtbaseDll -PathType:Leaf) {
                     $verInfo = Get-FileVersion -File:$ucrtbaseDll
                     Trace-Message "$ucrtBaseDll version is $verInfo"
                     return $true
@@ -764,7 +747,7 @@ try {
             ## telemetry dependency (needed by Sense service) - see https://www.microsoft.com/en-us/download/details.aspx?id=48637
             Install-KB -Uri:'https://download.microsoft.com/download/A/3/E/A3E82C15-7762-4104-B969-6A486C49DB8D/Windows8.1-KB3080149-x64.msu' -KB:KB3080149 -ScriptBlock: {
                 $tdhDll = "$env:SystemRoot\system32\Tdh.dll"
-                if (Test-Path -Path:$tdhDll -PathType:Leaf) {
+                if (Test-Path -LiteralPath:$tdhDll -PathType:Leaf) {
                     $fileVersion = Get-FileVersion -File:$tdhDll
                     $minFileVersion = New-Object -TypeName:System.Version -ArgumentList:6, 3, 9600, 17958
                     if ($fileVersion -ge $minFileVersion) {
@@ -806,8 +789,8 @@ try {
                     Trace-Warning "Previously installed msi was not properly uninstalled(code:$codeSQUID)"
                     foreach ($subdir in 'Products', 'Features') {
                         $item = "HKCR:\Installer\$subdir\$codeSQUID"
-                        if (Test-Path -Path:$item -PathType:Container) {
-                            Rename-Item -Path:$item -NewName:"$codeSQUID~" -ErrorAction:Stop
+                        if (Test-Path -LiteralPath:$item -PathType:Container) {
+                            Rename-Item -LiteralPath:$item -NewName:"$codeSQUID~" -ErrorAction:Stop
                             Trace-Warning "$item renamed to $codeSQUID~"
                         } else {
                             Trace-Warning "$item not present"
@@ -819,7 +802,7 @@ try {
             $windefendStatus = (Get-Service -Name:'WinDefend' -ErrorAction:SilentlyContinue).Status
             if ($windefendStatus -ne 'Running') {
                 ## try to start it using 'mpcmdrun wdenable' (best effort)
-                $disableAntiSpyware = Get-RegistryKey -Path:'HKLM:\Software\Microsoft\Windows Defender' -Name:'DisableAntiSpyware'
+                $disableAntiSpyware = Get-RegistryKey -LiteralPath:'HKLM:\Software\Microsoft\Windows Defender' -Name:'DisableAntiSpyware'
                 if ($null -ne $disableAntiSpyware -and 0 -ne $disableAntiSpyware) {
                     Trace-Warning "DisableAntiSpyware is set to $disableAntiSpyware (should be zero)"
                 }
@@ -830,7 +813,7 @@ try {
             # Server 2016 - Windows Defender is shipped with OS, need to check if inbox version is updatable and latest.
             # Expectations are that 'Windows Defender Features' are installed and up-to-date            
             if ($windefendStatus -eq 'Running') {
-                $imageName = (Get-ItemPropertyValue -Path:'HKLM:\SYSTEM\CurrentControlSet\Services\WinDefend' -Name:ImagePath) -replace '"', ''
+                $imageName = (Get-ItemPropertyValue -LiteralPath:'HKLM:\SYSTEM\CurrentControlSet\Services\WinDefend' -Name:ImagePath) -replace '"', ''
                 $currentVersion = Get-FileVersion -File:$imageName
                 if ($currentVersion -lt '4.10.14393.2515') {
                     Exit-Install 'Windows Defender platform update requirement not met. Please apply the latest cumulative update (LCU) for Windows first. Minimum required is https://support.microsoft.com/en-us/help/4457127' -ExitCode:$ERR_INSUFFICIENT_REQUIREMENTS
@@ -844,7 +827,7 @@ try {
                     if ($currentVersion -lt $msiVersion) {
                         Trace-Message "Current platform version is $currentVersion, msiVersion is $msiVersion"
                         $updatePlatform = Join-Path -Path:$PSScriptRoot $updatePlatformBaseName
-                        if (-not (Test-Path -Path:$updatePlatform -PathType:Leaf) -and -not $DevMode.IsPresent) {
+                        if (-not (Test-Path -LiteralPath:$updatePlatform -PathType:Leaf) -and -not $DevMode.IsPresent) {
                             ## Download $updatePlatformBaseName from $uri *only if* the UpdatePlatform is not present.
                             $uri = 'https://go.microsoft.com/fwlink/?linkid=870379&arch=x64'
                             Trace-Message "$updatePlatformBaseName not present under $PSScriptRoot"
@@ -877,7 +860,7 @@ try {
 
                         Trace-Message ("Running $updatePlatformBaseName (version {0})" -f (Get-FileVersion -File:$updatePlatform))
                         Measure-Process -FilePath:$updatePlatform
-                        $imageName = (Get-ItemPropertyValue -Path:'HKLM:\SYSTEM\CurrentControlSet\Services\WinDefend' -Name:ImagePath) -replace '"', ''
+                        $imageName = (Get-ItemPropertyValue -LiteralPath:'HKLM:\SYSTEM\CurrentControlSet\Services\WinDefend' -Name:ImagePath) -replace '"', ''
                         $currentVersion = Get-FileVersion -File:$imageName
                         if ($currentVersion -lt $latestVersion) {
                             Exit-Install "Current version is $currentVersion, expected to be at least $latestVersion" -ExitCode:$ERR_INSUFFICIENT_REQUIREMENTS
@@ -889,8 +872,8 @@ try {
                 } finally {
                     $Global:ProgressPreference = $previousProgressPreference
                     if ($deleteUpdatePlatform) {
-                        Remove-Item -Path:$updatePlatform -ErrorAction:SilentlyContinue
-                        if (Test-Path -Path:$updatePlatform -PathType:Leaf) {
+                        Remove-Item -LiteralPath:$updatePlatform -ErrorAction:SilentlyContinue
+                        if (Test-Path -LiteralPath:$updatePlatform -PathType:Leaf) {
                             Trace-Warning "Could not delete $updatePlatform"
                         } else {
                             Trace-Message "$updatePlatform deleted"
@@ -905,7 +888,7 @@ try {
         }
     }
 
-    $onboardSense = Get-RegistryKey -Path:'HKLM:SYSTEM\CurrentControlSet\Services\Sense' -Name:'Start'
+    $onboardSense = Get-RegistryKey -LiteralPath:'HKLM:SYSTEM\CurrentControlSet\Services\Sense' -Name:'Start'
     if ($OffboardingScript.Length -gt 0 -and ($action -eq 'uninstall' -or $null -ne $uninstallGUID)) {
         if (2 -ne $onboardSense) {
             Exit-Install -Message:"Sense Service is not onboarded, nothing to offboard." -ExitCode:$ERR_NOT_ONBOARDED
@@ -919,7 +902,7 @@ try {
         $exitCode = Measure-Process -FilePath:$((Get-Command 'cmd.exe').Path) -ArgumentList:@('/c', $scriptPath) -PassThru
         if (0 -eq $exitCode) {
             Trace-Message "Offboarding successful."
-            $onboardSense = Get-RegistryKey -Path:'HKLM:SYSTEM\CurrentControlSet\Services\Sense' -Name:'Start'
+            $onboardSense = Get-RegistryKey -LiteralPath:'HKLM:SYSTEM\CurrentControlSet\Services\Sense' -Name:'Start'
         } else {
             Exit-Install "Offboarding script returned $exitCode." -ExitCode:$exitCode
         }
@@ -953,7 +936,7 @@ try {
     }
 
     $argumentList = if ($action -eq 'install') {
-        if (-not (Test-Path -Path:$msi -PathType:leaf)) {
+        if (-not (Test-Path -LiteralPath:$msi -PathType:leaf)) {
             Exit-Install "$msi does not exist." -ExitCode:$ERR_MSI_NOT_FOUND
         } else {
             try {
@@ -969,7 +952,7 @@ try {
             if ($status -ne 'Valid') {
                 Exit-Install "Unexpected authenticode signature status($status) for $msi" -ExitCode:$ERR_CORRUPTED_FILE
             }
-            Trace-Message "$($(Get-FileHash -Path:$msi).Hash) $msi"
+            Trace-Message "$($(Get-FileHash -LiteralPath:$msi).Hash) $msi"
         }
         if ($msi.Contains(' ')) { @('/i', "`"$msi`"") } else { @('/i', $msi) }
     } else {
@@ -1005,9 +988,9 @@ try {
             ## install succeeded, no need to keep around these 2 registry keys.
             foreach ($subdir in 'Products', 'Features') {
                 $itemPath = "HKCR:\Installer\$subdir\$codeSQUID~"
-                if (Test-Path -Path:$itemPath -PathType:Container) {
+                if (Test-Path -LiteralPath:$itemPath -PathType:Container) {
                     try {
-                        Remove-Item -Path:$itemPath -Recurse -ErrorAction:Stop
+                        Remove-Item -LiteralPath:$itemPath -Recurse -ErrorAction:Stop
                         Trace-Message "$itemPath recusively removed"
                     } catch {
                         Trace-Warning "Failed to remove $itemPath"
@@ -1045,23 +1028,23 @@ try {
             param($ScriptRoot, $logBase, $wdprov, $tempFile, $etlLog, $wppTracingLevel, $reportingPath)
             & logman.exe stop -n $logBase -ets *>$null
             Trace-Message "Tracing session '$logBase' stopped."
-            Remove-ItemProperty -Path:$reportingPath -Name:$wppTracingLevel -ErrorAction:SilentlyContinue
+            Remove-ItemProperty -LiteralPath:$reportingPath -Name:$wppTracingLevel -ErrorAction:SilentlyContinue
         }
-        Move-Item -Path:$tempFile -Destination:$etlLog -ErrorAction:Continue
+        Move-Item -LiteralPath:$tempFile -Destination:$etlLog -ErrorAction:Continue
         Trace-Message  "ETL file: '$etlLog'."
     }   
 
-    if ($log -and (Test-Path -Path:$tempMsiLog -PathType:Leaf)) {
-        Move-Item -Path:$tempMsiLog -Destination:$msiLog -ErrorAction:Continue
+    if ($log -and (Test-Path -LiteralPath:$tempMsiLog -PathType:Leaf)) {
+        Move-Item -LiteralPath:$tempMsiLog -Destination:$msiLog -ErrorAction:Continue
         Trace-Message "Msi log: '$msiLog'"
     }
 }
 #Copyright (C) Microsoft Corporation. All rights reserved.
 # SIG # Begin signature block
-# MIIljwYJKoZIhvcNAQcCoIIlgDCCJXwCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# MIIlggYJKoZIhvcNAQcCoIIlczCCJW8CAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCZXMq+1pz3NAp2
-# a9KhOGHjKC5rCZnwJFvO4+OD+An/IKCCC14wggTrMIID06ADAgECAhMzAAAJaWnl
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBv0coJipIaxLAt
+# sLcbFf3ZJ3RVS4AdocC5MXlVAsctiqCCC14wggTrMIID06ADAgECAhMzAAAJaWnl
 # VutOg/ZMAAAAAAlpMA0GCSqGSIb3DQEBCwUAMHkxCzAJBgNVBAYTAlVTMRMwEQYD
 # VQQIEwpXYXNoaW5ndG9uMRAwDgYDVQQHEwdSZWRtb25kMR4wHAYDVQQKExVNaWNy
 # b3NvZnQgQ29ycG9yYXRpb24xIzAhBgNVBAMTGk1pY3Jvc29mdCBXaW5kb3dzIFBD
@@ -1122,141 +1105,141 @@ try {
 # rWQQ6DH5ElR5GvIO2NarHjP+AucmbWFJj/Elwot0md/5kxqQHO7dlDMOQlDbf1D4
 # n2KC7KaCFnxmvOyZsMFYXaiwmmEUkdGZL0nkPoGZ1ubvyuP9Pu7sCYYDBw0bDXzr
 # 9FrJlc+HEgpd7MUCks0FmXLKffEqEBg45DGjKLTmTMVSo5xqx33AcQkEDXDeAj+H
-# 7lah7Ou1TIUxghmHMIIZgwIBATCBkDB5MQswCQYDVQQGEwJVUzETMBEGA1UECBMK
+# 7lah7Ou1TIUxghl6MIIZdgIBATCBkDB5MQswCQYDVQQGEwJVUzETMBEGA1UECBMK
 # V2FzaGluZ3RvbjEQMA4GA1UEBxMHUmVkbW9uZDEeMBwGA1UEChMVTWljcm9zb2Z0
 # IENvcnBvcmF0aW9uMSMwIQYDVQQDExpNaWNyb3NvZnQgV2luZG93cyBQQ0EgMjAx
 # MAITMwAACWlp5VbrToP2TAAAAAAJaTANBglghkgBZQMEAgEFAKCBrjAZBgkqhkiG
 # 9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3AgELMQ4wDAYKKwYBBAGCNwIB
-# FTAvBgkqhkiG9w0BCQQxIgQgxIGh0n4pLd1/ossNRdTK0bIiwENMLxJjmxocb6e9
-# VwQwQgYKKwYBBAGCNwIBDDE0MDKgFIASAE0AaQBjAHIAbwBzAG8AZgB0oRqAGGh0
-# dHA6Ly93d3cubWljcm9zb2Z0LmNvbTANBgkqhkiG9w0BAQEFAASCAQDhnVe7FfOV
-# idZ1o9vkod/alwMUrq8h0KtvuuNqT2uo7hb9qqkpg6p13DTMbl9yPIfTyfSDInjA
-# rFoiR6cDyFj5b0fwk7UP8SDHd27rWXyHAW8TGSBmMSAOUOA0w6bneGpmPkfVB7lB
-# jMRQrk/SoEcSnrvSpnWKnApuBLeZPH8DqDQbe9+BDjrH9mJZEM6AwPq+IaYfv9vt
-# JIilggc4XZCWeHd+VDuH1tloJ/rN3YAbHP0sNmdps6+CPCplNgZvmL4TQrqBFhHU
-# 0AinTgtSvfiZD2hLWXpUGwocKXEfe5FKio1FihDMcYZPTZIZYrERnV5AqCgz6cvd
-# lux1rajmKc2MoYIXFjCCFxIGCisGAQQBgjcDAwExghcCMIIW/gYJKoZIhvcNAQcC
-# oIIW7zCCFusCAQMxDzANBglghkgBZQMEAgEFADCCAVkGCyqGSIb3DQEJEAEEoIIB
-# SASCAUQwggFAAgEBBgorBgEEAYRZCgMBMDEwDQYJYIZIAWUDBAIBBQAEIIbTyTgg
-# wGQZDVp73FTwOci7zj6lOQPpwtAV/uoNUMlSAgZi3ogbHakYEzIwMjIwNzI3MDgz
-# MzIxLjExMVowBIACAfSggdikgdUwgdIxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpX
+# FTAvBgkqhkiG9w0BCQQxIgQgkMl4B2Luh+RmTRKlNcr7y79wjs/yKV9blNBMZL27
+# NPwwQgYKKwYBBAGCNwIBDDE0MDKgFIASAE0AaQBjAHIAbwBzAG8AZgB0oRqAGGh0
+# dHA6Ly93d3cubWljcm9zb2Z0LmNvbTANBgkqhkiG9w0BAQEFAASCAQBOJKXauvA+
+# 8SFUgvGOF12ePPhRi6Bo++WCuXYsNtLGfnpKOsLPMD/SfL/rwouytzDTPimVQ1LD
+# EG1GugIIlD2o2pPDMBokXFzhumFzVRltmgy263JXXV/U8NRZkyaFhvaACVUe4DME
+# rASU1s/1cJT9EscLxC+TERrcsLNIjCrOAgpCCHKXmgjdt+dn/78gpzJsNvD/MZoR
+# z9JA50zJkQMtPYiKggUpoM5PO5FRf7qr4S4w1MRJhjEjyd791PHNNm7tASBxpReg
+# Zp11I8Zg3Ago9O+5CnMpgBjbOzfTDy4YlYpGviKyUdAMrWLslSKb5kMh3Myg72Al
+# MS7O2T9F6H5SoYIXCTCCFwUGCisGAQQBgjcDAwExghb1MIIW8QYJKoZIhvcNAQcC
+# oIIW4jCCFt4CAQMxDzANBglghkgBZQMEAgEFADCCAVUGCyqGSIb3DQEJEAEEoIIB
+# RASCAUAwggE8AgEBBgorBgEEAYRZCgMBMDEwDQYJYIZIAWUDBAIBBQAEIIu39wX4
+# raexCf1cPM9FeeBZruxD5P/51H7lZTyqlyboAgZi/rqHsdwYEzIwMjIwODIyMDcz
+# ODEyLjc4NFowBIACAfSggdSkgdEwgc4xCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpX
 # YXNoaW5ndG9uMRAwDgYDVQQHEwdSZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQg
-# Q29ycG9yYXRpb24xLTArBgNVBAsTJE1pY3Jvc29mdCBJcmVsYW5kIE9wZXJhdGlv
-# bnMgTGltaXRlZDEmMCQGA1UECxMdVGhhbGVzIFRTUyBFU046RDA4Mi00QkZELUVF
-# QkExJTAjBgNVBAMTHE1pY3Jvc29mdCBUaW1lLVN0YW1wIFNlcnZpY2WgghFlMIIH
-# FDCCBPygAwIBAgITMwAAAY/zUajrWnLdzAABAAABjzANBgkqhkiG9w0BAQsFADB8
-# MQswCQYDVQQGEwJVUzETMBEGA1UECBMKV2FzaGluZ3RvbjEQMA4GA1UEBxMHUmVk
-# bW9uZDEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9uMSYwJAYDVQQDEx1N
-# aWNyb3NvZnQgVGltZS1TdGFtcCBQQ0EgMjAxMDAeFw0yMTEwMjgxOTI3NDZaFw0y
-# MzAxMjYxOTI3NDZaMIHSMQswCQYDVQQGEwJVUzETMBEGA1UECBMKV2FzaGluZ3Rv
-# bjEQMA4GA1UEBxMHUmVkbW9uZDEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0
-# aW9uMS0wKwYDVQQLEyRNaWNyb3NvZnQgSXJlbGFuZCBPcGVyYXRpb25zIExpbWl0
-# ZWQxJjAkBgNVBAsTHVRoYWxlcyBUU1MgRVNOOkQwODItNEJGRC1FRUJBMSUwIwYD
-# VQQDExxNaWNyb3NvZnQgVGltZS1TdGFtcCBTZXJ2aWNlMIICIjANBgkqhkiG9w0B
-# AQEFAAOCAg8AMIICCgKCAgEAmVc+/rXPFx6Fk4+CpLrubDrLTa3QuAHRVXuy+zsx
-# XwkogkT0a+XWuBabwHyqj8RRiZQQvdvbOq5NRExOeHiaCtkUsQ02ESAe9Cz+loBN
-# tsfCq846u3otWHCJlqkvDrSr7mMBqwcRY7cfhAGfLvlpMSojoAnk7Rej+jcJnYxI
-# eN34F3h9JwANY360oGYCIS7pLOosWV+bxug9uiTZYE/XclyYNF6XdzZ/zD/4U5px
-# T4MZQmzBGvDs+8cDdA/stZfj/ry+i0XUYNFPhuqc+UKkwm/XNHB+CDsGQl+ZS0Gc
-# bUUun4VPThHJm6mRAwL5y8zptWEIocbTeRSTmZnUa2iYH2EOBV7eCjx0Sdb6kLc1
-# xdFRckDeQGR4J1yFyybuZsUP8x0dOsEEoLQuOhuKlDLQEg7D6ZxmZJnS8B03ewk/
-# SpVLqsb66U2qyF4BwDt1uZkjEZ7finIoUgSz4B7fWLYIeO2OCYxIE0XvwsVop9Pv
-# TXTZtGPzzmHU753GarKyuM6oa/qaTzYvrAfUb7KYhvVQKxGUPkL9+eKiM7G0qenJ
-# CFrXzZPwRWoccAR33PhNEuuzzKZFJ4DeaTCLg/8uK0Q4QjFRef5n4H+2KQIEibZ7
-# zIeBX3jgsrICbzzSm0QX3SRVmZH//Aqp8YxkwcoI1WCBizv84z9eqwRBdQ4HYcNb
-# QMMCAwEAAaOCATYwggEyMB0GA1UdDgQWBBTzBuZ0a65JzuKhzoWb25f7NyNxvDAf
-# BgNVHSMEGDAWgBSfpxVdAF5iXYP05dJlpxtTNRnpcjBfBgNVHR8EWDBWMFSgUqBQ
-# hk5odHRwOi8vd3d3Lm1pY3Jvc29mdC5jb20vcGtpb3BzL2NybC9NaWNyb3NvZnQl
-# MjBUaW1lLVN0YW1wJTIwUENBJTIwMjAxMCgxKS5jcmwwbAYIKwYBBQUHAQEEYDBe
-# MFwGCCsGAQUFBzAChlBodHRwOi8vd3d3Lm1pY3Jvc29mdC5jb20vcGtpb3BzL2Nl
-# cnRzL01pY3Jvc29mdCUyMFRpbWUtU3RhbXAlMjBQQ0ElMjAyMDEwKDEpLmNydDAM
-# BgNVHRMBAf8EAjAAMBMGA1UdJQQMMAoGCCsGAQUFBwMIMA0GCSqGSIb3DQEBCwUA
-# A4ICAQDNf9Oo9zyhC5n1jC8iU7NJY39FizjhxZwJbJY/Ytwn63plMlTSaBperan5
-# 66fuRojGJSv3EwZs+RruOU2T/ZRDx4VHesLHtclE8GmMM1qTMaZPL8I2FrRmf5Oo
-# p4GqcxNdNECBClVZmn0KzFdPMqRa5/0R6CmgqJh0muvImikgHubvohsavPEyyHQa
-# 94HD4/LNKd/YIaCKKPz9SA5fAa4phQ4Evz2auY9SUluId5MK9H5cjWVwBxCvYAD+
-# 1CW9z7GshJlNjqBvWtKO6J0Aemfg6z28g7qc7G/tCtrlH4/y27y+stuwWXNvwdsS
-# d1lvB4M63AuMl9Yp6au/XFknGzJPF6n/uWR6JhQvzh40ILgeThLmYhf8z+aDb4r2
-# OBLG1P2B6aCTW2YQkt7TpUnzI0cKGr213CbKtGk/OOIHSsDOxasmeGJ+FiUJCiV1
-# 5wh3aZT/VT/PkL9E4hDBAwGt49G88gSCO0x9jfdDZWdWGbELXlSmA3EP4eTYq7Rr
-# olY04G8fGtF0pzuZu43A29zaI9lIr5ulKRz8EoQHU6cu0PxUw0B9H8cAkvQxaMum
-# RZ/4fCbqNb4TcPkPcWOI24QYlvpbtT9p31flYElmc5wjGplAky/nkJcT0HZENXen
-# xWtPvt4gcoqppeJPA3S/1D57KL3667epIr0yV290E2otZbAW8DCCB3EwggVZoAMC
-# AQICEzMAAAAVxedrngKbSZkAAAAAABUwDQYJKoZIhvcNAQELBQAwgYgxCzAJBgNV
+# Q29ycG9yYXRpb24xKTAnBgNVBAsTIE1pY3Jvc29mdCBPcGVyYXRpb25zIFB1ZXJ0
+# byBSaWNvMSYwJAYDVQQLEx1UaGFsZXMgVFNTIEVTTjo0RDJGLUUzREQtQkVFRjEl
+# MCMGA1UEAxMcTWljcm9zb2Z0IFRpbWUtU3RhbXAgU2VydmljZaCCEVwwggcQMIIE
+# +KADAgECAhMzAAABsKHjgzLojTvAAAEAAAGwMA0GCSqGSIb3DQEBCwUAMHwxCzAJ
+# BgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAwDgYDVQQHEwdSZWRtb25k
+# MR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xJjAkBgNVBAMTHU1pY3Jv
+# c29mdCBUaW1lLVN0YW1wIFBDQSAyMDEwMB4XDTIyMDMwMjE4NTE0MloXDTIzMDUx
+# MTE4NTE0Mlowgc4xCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAw
+# DgYDVQQHEwdSZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24x
+# KTAnBgNVBAsTIE1pY3Jvc29mdCBPcGVyYXRpb25zIFB1ZXJ0byBSaWNvMSYwJAYD
+# VQQLEx1UaGFsZXMgVFNTIEVTTjo0RDJGLUUzREQtQkVFRjElMCMGA1UEAxMcTWlj
+# cm9zb2Z0IFRpbWUtU3RhbXAgU2VydmljZTCCAiIwDQYJKoZIhvcNAQEBBQADggIP
+# ADCCAgoCggIBAJzGbTsM19KCnQc5RC7VoglySXMKLut/yWWPQWD6VAlJgBexVKx2
+# n1zgX3o/xA2ZgZ/NFGcgNDRCJ7mJiOeW7xeHnoNXPlg7EjYWulfk3oOAj6a7O15G
+# vckpYsvLcx+o8Se8CrfIb40EJ8W0Qx4TIXf0yDwAJ4/qO94dJ/hGabeJYg4Gp0G0
+# uQmhwFovAWTHlD1ci+sp36AxT9wIhHqw/70tzMvrnDF7jmQjaVUPnjOgPOyFWZiV
+# r7e6rkSl4anT1tLv23SWhXqMs14wolv4ZeQcWP84rV2Frr1KbwkIa0vlHjlv4xG9
+# a6nlTRfo0CYUQDfrZOMXCI5KcAN2BZ6fVb09qtCdsWdNNxB0y4lwMjnuNmx85FNf
+# zPcMZjmwAF9aRUUMLHv626I67t1+dZoVPpKqfSNmGtVt9DETWkmDipnGg4+BdTpl
+# vgGVq9F3KZPDFHabxbLpSWfXW90MZXOuFH8yCMzDJNUzeyAqytFFyLZir3j4T1Gx
+# 7lReCOUPw1puVzbWKspV7ModZjtN/IUWdVIdk3HPp4QN1wwdVvdXOsYdhG8kgjGy
+# AZID5or7C/75hyKQb5F0Z+Ee04uY9K+sDZ3l3z8TQZWAfYurbZCMWWnmJVsu5V4P
+# R5PO+U6D7tAtMvMULNYibT9+sxVZK/WQer2JJ9q3Z7ljFs4lgpmfc6AVAgMBAAGj
+# ggE2MIIBMjAdBgNVHQ4EFgQUOt8BJDcBJm4dy6ASZHrXIEfWNj8wHwYDVR0jBBgw
+# FoAUn6cVXQBeYl2D9OXSZacbUzUZ6XIwXwYDVR0fBFgwVjBUoFKgUIZOaHR0cDov
+# L3d3dy5taWNyb3NvZnQuY29tL3BraW9wcy9jcmwvTWljcm9zb2Z0JTIwVGltZS1T
+# dGFtcCUyMFBDQSUyMDIwMTAoMSkuY3JsMGwGCCsGAQUFBwEBBGAwXjBcBggrBgEF
+# BQcwAoZQaHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraW9wcy9jZXJ0cy9NaWNy
+# b3NvZnQlMjBUaW1lLVN0YW1wJTIwUENBJTIwMjAxMCgxKS5jcnQwDAYDVR0TAQH/
+# BAIwADATBgNVHSUEDDAKBggrBgEFBQcDCDANBgkqhkiG9w0BAQsFAAOCAgEA3XPi
+# h5sNtUfAyLnlXq6MZSpCh0TF+uG+nhIJ44//cMcQGEViZ2N263NwvrQjCFOni/+o
+# xf76jcmUhcKWLXk9hhd7vfFBhZZzcF5aNs07Uligs24pveasFuhmJ4y82OYm1G1O
+# RYsFndZdvF//NrYGxaXqUNlRHQlskV/pmccqO3Oi6wLHcPB1/WRTLJtYbIiiwE/u
+# TFEFEL45wWD/1mTCPEkFX3hliXEypxXzdZ1k6XqGTysGAtLXUB7IC6CH26YygKQu
+# XG8QjcJBAUG/9F3yNZOdbFvn7FinZyNcIVLxld7h0bELfQzhIjelj+5sBKhLcaFU
+# 0vbjbmf0WENgFmnyJNiMrL7/2FYOLsgiQDbJx6Dpy1EfvuRGsdL5f+jVVds5oMaK
+# rhxgV7oEobrA6Z56nnWYN47swwouucHf0ym1DQWHy2DHOFRRN7yv++zes0GSCOjR
+# RYPK7rr1Qc+O3nsd604Ogm5nR9QqhOOc2OQTrvtSgXBStu5vF6W8DPcsns53cQ4g
+# dcR1Y9Ng5IYEwxCZzzYsq9oalxlH+ZH/A6J7ZMeSNKNkrXPx6ppFXUxHuC3k4mzV
+# yZNGWP/ZgcUOi2qV03m6Imytvi1kfGe6YdCh32POgWeNH9lfKt+d1M+q4IhJLmX0
+# E2ZZICYEb9Q0romeMX8GZ+cbhuNsFimJga/fjjswggdxMIIFWaADAgECAhMzAAAA
+# FcXna54Cm0mZAAAAAAAVMA0GCSqGSIb3DQEBCwUAMIGIMQswCQYDVQQGEwJVUzET
+# MBEGA1UECBMKV2FzaGluZ3RvbjEQMA4GA1UEBxMHUmVkbW9uZDEeMBwGA1UEChMV
+# TWljcm9zb2Z0IENvcnBvcmF0aW9uMTIwMAYDVQQDEylNaWNyb3NvZnQgUm9vdCBD
+# ZXJ0aWZpY2F0ZSBBdXRob3JpdHkgMjAxMDAeFw0yMTA5MzAxODIyMjVaFw0zMDA5
+# MzAxODMyMjVaMHwxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAw
+# DgYDVQQHEwdSZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24x
+# JjAkBgNVBAMTHU1pY3Jvc29mdCBUaW1lLVN0YW1wIFBDQSAyMDEwMIICIjANBgkq
+# hkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA5OGmTOe0ciELeaLL1yR5vQ7VgtP97pwH
+# B9KpbE51yMo1V/YBf2xK4OK9uT4XYDP/XE/HZveVU3Fa4n5KWv64NmeFRiMMtY0T
+# z3cywBAY6GB9alKDRLemjkZrBxTzxXb1hlDcwUTIcVxRMTegCjhuje3XD9gmU3w5
+# YQJ6xKr9cmmvHaus9ja+NSZk2pg7uhp7M62AW36MEBydUv626GIl3GoPz130/o5T
+# z9bshVZN7928jaTjkY+yOSxRnOlwaQ3KNi1wjjHINSi947SHJMPgyY9+tVSP3PoF
+# VZhtaDuaRr3tpK56KTesy+uDRedGbsoy1cCGMFxPLOJiss254o2I5JasAUq7vnGp
+# F1tnYN74kpEeHT39IM9zfUGaRnXNxF803RKJ1v2lIH1+/NmeRd+2ci/bfV+Autuq
+# fjbsNkz2K26oElHovwUDo9Fzpk03dJQcNIIP8BDyt0cY7afomXw/TNuvXsLz1dhz
+# PUNOwTM5TI4CvEJoLhDqhFFG4tG9ahhaYQFzymeiXtcodgLiMxhy16cg8ML6EgrX
+# Y28MyTZki1ugpoMhXV8wdJGUlNi5UPkLiWHzNgY1GIRH29wb0f2y1BzFa/ZcUlFd
+# Etsluq9QBXpsxREdcu+N+VLEhReTwDwV2xo3xwgVGD94q0W29R6HXtqPnhZyacau
+# e7e3PmriLq0CAwEAAaOCAd0wggHZMBIGCSsGAQQBgjcVAQQFAgMBAAEwIwYJKwYB
+# BAGCNxUCBBYEFCqnUv5kxJq+gpE8RjUpzxD/LwTuMB0GA1UdDgQWBBSfpxVdAF5i
+# XYP05dJlpxtTNRnpcjBcBgNVHSAEVTBTMFEGDCsGAQQBgjdMg30BATBBMD8GCCsG
+# AQUFBwIBFjNodHRwOi8vd3d3Lm1pY3Jvc29mdC5jb20vcGtpb3BzL0RvY3MvUmVw
+# b3NpdG9yeS5odG0wEwYDVR0lBAwwCgYIKwYBBQUHAwgwGQYJKwYBBAGCNxQCBAwe
+# CgBTAHUAYgBDAEEwCwYDVR0PBAQDAgGGMA8GA1UdEwEB/wQFMAMBAf8wHwYDVR0j
+# BBgwFoAU1fZWy4/oolxiaNE9lJBb186aGMQwVgYDVR0fBE8wTTBLoEmgR4ZFaHR0
+# cDovL2NybC5taWNyb3NvZnQuY29tL3BraS9jcmwvcHJvZHVjdHMvTWljUm9vQ2Vy
+# QXV0XzIwMTAtMDYtMjMuY3JsMFoGCCsGAQUFBwEBBE4wTDBKBggrBgEFBQcwAoY+
+# aHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraS9jZXJ0cy9NaWNSb29DZXJBdXRf
+# MjAxMC0wNi0yMy5jcnQwDQYJKoZIhvcNAQELBQADggIBAJ1VffwqreEsH2cBMSRb
+# 4Z5yS/ypb+pcFLY+TkdkeLEGk5c9MTO1OdfCcTY/2mRsfNB1OW27DzHkwo/7bNGh
+# lBgi7ulmZzpTTd2YurYeeNg2LpypglYAA7AFvonoaeC6Ce5732pvvinLbtg/SHUB
+# 2RjebYIM9W0jVOR4U3UkV7ndn/OOPcbzaN9l9qRWqveVtihVJ9AkvUCgvxm2EhIR
+# XT0n4ECWOKz3+SmJw7wXsFSFQrP8DJ6LGYnn8AtqgcKBGUIZUnWKNsIdw2FzLixr
+# e24/LAl4FOmRsqlb30mjdAy87JGA0j3mSj5mO0+7hvoyGtmW9I/2kQH2zsZ0/fZM
+# cm8Qq3UwxTSwethQ/gpY3UA8x1RtnWN0SCyxTkctwRQEcb9k+SS+c23Kjgm9swFX
+# SVRk2XPXfx5bRAGOWhmRaw2fpCjcZxkoJLo4S5pu+yFUa2pFEUep8beuyOiJXk+d
+# 0tBMdrVXVAmxaQFEfnyhYWxz/gq77EFmPWn9y8FBSX5+k77L+DvktxW/tM4+pTFR
+# hLy/AsGConsXHRWJjXD+57XQKBqJC4822rpM+Zv/Cuk0+CQ1ZyvgDbjmjJnW4SLq
+# 8CdCPSWU5nR0W2rRnj7tfqAxM328y+l7vzhwRNGQ8cirOoo6CGJ/2XBjU02N7oJt
+# pQUQwXEGahC0HVUzWLOhcGbyoYICzzCCAjgCAQEwgfyhgdSkgdEwgc4xCzAJBgNV
 # BAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAwDgYDVQQHEwdSZWRtb25kMR4w
-# HAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xMjAwBgNVBAMTKU1pY3Jvc29m
-# dCBSb290IENlcnRpZmljYXRlIEF1dGhvcml0eSAyMDEwMB4XDTIxMDkzMDE4MjIy
-# NVoXDTMwMDkzMDE4MzIyNVowfDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCldhc2hp
-# bmd0b24xEDAOBgNVBAcTB1JlZG1vbmQxHjAcBgNVBAoTFU1pY3Jvc29mdCBDb3Jw
-# b3JhdGlvbjEmMCQGA1UEAxMdTWljcm9zb2Z0IFRpbWUtU3RhbXAgUENBIDIwMTAw
-# ggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDk4aZM57RyIQt5osvXJHm9
-# DtWC0/3unAcH0qlsTnXIyjVX9gF/bErg4r25PhdgM/9cT8dm95VTcVrifkpa/rg2
-# Z4VGIwy1jRPPdzLAEBjoYH1qUoNEt6aORmsHFPPFdvWGUNzBRMhxXFExN6AKOG6N
-# 7dcP2CZTfDlhAnrEqv1yaa8dq6z2Nr41JmTamDu6GnszrYBbfowQHJ1S/rboYiXc
-# ag/PXfT+jlPP1uyFVk3v3byNpOORj7I5LFGc6XBpDco2LXCOMcg1KL3jtIckw+DJ
-# j361VI/c+gVVmG1oO5pGve2krnopN6zL64NF50ZuyjLVwIYwXE8s4mKyzbnijYjk
-# lqwBSru+cakXW2dg3viSkR4dPf0gz3N9QZpGdc3EXzTdEonW/aUgfX782Z5F37Zy
-# L9t9X4C626p+Nuw2TPYrbqgSUei/BQOj0XOmTTd0lBw0gg/wEPK3Rxjtp+iZfD9M
-# 269ewvPV2HM9Q07BMzlMjgK8QmguEOqEUUbi0b1qGFphAXPKZ6Je1yh2AuIzGHLX
-# pyDwwvoSCtdjbwzJNmSLW6CmgyFdXzB0kZSU2LlQ+QuJYfM2BjUYhEfb3BvR/bLU
-# HMVr9lxSUV0S2yW6r1AFemzFER1y7435UsSFF5PAPBXbGjfHCBUYP3irRbb1Hode
-# 2o+eFnJpxq57t7c+auIurQIDAQABo4IB3TCCAdkwEgYJKwYBBAGCNxUBBAUCAwEA
-# ATAjBgkrBgEEAYI3FQIEFgQUKqdS/mTEmr6CkTxGNSnPEP8vBO4wHQYDVR0OBBYE
-# FJ+nFV0AXmJdg/Tl0mWnG1M1GelyMFwGA1UdIARVMFMwUQYMKwYBBAGCN0yDfQEB
-# MEEwPwYIKwYBBQUHAgEWM2h0dHA6Ly93d3cubWljcm9zb2Z0LmNvbS9wa2lvcHMv
-# RG9jcy9SZXBvc2l0b3J5Lmh0bTATBgNVHSUEDDAKBggrBgEFBQcDCDAZBgkrBgEE
-# AYI3FAIEDB4KAFMAdQBiAEMAQTALBgNVHQ8EBAMCAYYwDwYDVR0TAQH/BAUwAwEB
-# /zAfBgNVHSMEGDAWgBTV9lbLj+iiXGJo0T2UkFvXzpoYxDBWBgNVHR8ETzBNMEug
-# SaBHhkVodHRwOi8vY3JsLm1pY3Jvc29mdC5jb20vcGtpL2NybC9wcm9kdWN0cy9N
-# aWNSb29DZXJBdXRfMjAxMC0wNi0yMy5jcmwwWgYIKwYBBQUHAQEETjBMMEoGCCsG
-# AQUFBzAChj5odHRwOi8vd3d3Lm1pY3Jvc29mdC5jb20vcGtpL2NlcnRzL01pY1Jv
-# b0NlckF1dF8yMDEwLTA2LTIzLmNydDANBgkqhkiG9w0BAQsFAAOCAgEAnVV9/Cqt
-# 4SwfZwExJFvhnnJL/Klv6lwUtj5OR2R4sQaTlz0xM7U518JxNj/aZGx80HU5bbsP
-# MeTCj/ts0aGUGCLu6WZnOlNN3Zi6th542DYunKmCVgADsAW+iehp4LoJ7nvfam++
-# Kctu2D9IdQHZGN5tggz1bSNU5HhTdSRXud2f8449xvNo32X2pFaq95W2KFUn0CS9
-# QKC/GbYSEhFdPSfgQJY4rPf5KYnDvBewVIVCs/wMnosZiefwC2qBwoEZQhlSdYo2
-# wh3DYXMuLGt7bj8sCXgU6ZGyqVvfSaN0DLzskYDSPeZKPmY7T7uG+jIa2Zb0j/aR
-# AfbOxnT99kxybxCrdTDFNLB62FD+CljdQDzHVG2dY3RILLFORy3BFARxv2T5JL5z
-# bcqOCb2zAVdJVGTZc9d/HltEAY5aGZFrDZ+kKNxnGSgkujhLmm77IVRrakURR6nx
-# t67I6IleT53S0Ex2tVdUCbFpAUR+fKFhbHP+CrvsQWY9af3LwUFJfn6Tvsv4O+S3
-# Fb+0zj6lMVGEvL8CwYKiexcdFYmNcP7ntdAoGokLjzbaukz5m/8K6TT4JDVnK+AN
-# uOaMmdbhIurwJ0I9JZTmdHRbatGePu1+oDEzfbzL6Xu/OHBE0ZDxyKs6ijoIYn/Z
-# cGNTTY3ugm2lBRDBcQZqELQdVTNYs6FwZvKhggLUMIICPQIBATCCAQChgdikgdUw
-# gdIxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAwDgYDVQQHEwdS
-# ZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xLTArBgNVBAsT
-# JE1pY3Jvc29mdCBJcmVsYW5kIE9wZXJhdGlvbnMgTGltaXRlZDEmMCQGA1UECxMd
-# VGhhbGVzIFRTUyBFU046RDA4Mi00QkZELUVFQkExJTAjBgNVBAMTHE1pY3Jvc29m
-# dCBUaW1lLVN0YW1wIFNlcnZpY2WiIwoBATAHBgUrDgMCGgMVAD5NL4IEdudIBwdG
-# oCaV0WBbQZpqoIGDMIGApH4wfDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCldhc2hp
-# bmd0b24xEDAOBgNVBAcTB1JlZG1vbmQxHjAcBgNVBAoTFU1pY3Jvc29mdCBDb3Jw
-# b3JhdGlvbjEmMCQGA1UEAxMdTWljcm9zb2Z0IFRpbWUtU3RhbXAgUENBIDIwMTAw
-# DQYJKoZIhvcNAQEFBQACBQDmiwC6MCIYDzIwMjIwNzI3MDgwOTMwWhgPMjAyMjA3
-# MjgwODA5MzBaMHQwOgYKKwYBBAGEWQoEATEsMCowCgIFAOaLALoCAQAwBwIBAAIC
-# Dk8wBwIBAAICEWUwCgIFAOaMUjoCAQAwNgYKKwYBBAGEWQoEAjEoMCYwDAYKKwYB
-# BAGEWQoDAqAKMAgCAQACAwehIKEKMAgCAQACAwGGoDANBgkqhkiG9w0BAQUFAAOB
-# gQAy7HVhcrufz9XUqBzV/Mn4TTl7R8+wFgzIiw6k9SRb8z0Dn43ztMThFnMDcwbf
-# QoJswQBXEoxeuhBKGHDuPO6+b8cE95iWenTuvoKNMZJBCCN+Y80eYkoDj9/62nr4
-# y3p7b1+4db6Qg7/XM+z9/Pv62KeCj/lGuHFt8zyphP2QPjGCBA0wggQJAgEBMIGT
-# MHwxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAwDgYDVQQHEwdS
-# ZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xJjAkBgNVBAMT
-# HU1pY3Jvc29mdCBUaW1lLVN0YW1wIFBDQSAyMDEwAhMzAAABj/NRqOtact3MAAEA
-# AAGPMA0GCWCGSAFlAwQCAQUAoIIBSjAaBgkqhkiG9w0BCQMxDQYLKoZIhvcNAQkQ
-# AQQwLwYJKoZIhvcNAQkEMSIEIFtfJOIkXsZURpUphvjEPVVP3xEQ/j/Q+eeED4RK
-# uF3iMIH6BgsqhkiG9w0BCRACLzGB6jCB5zCB5DCBvQQgl3IFT+LGxguVjiKm22It
-# mO6dFDWW8nShu6O6g8yFxx8wgZgwgYCkfjB8MQswCQYDVQQGEwJVUzETMBEGA1UE
-# CBMKV2FzaGluZ3RvbjEQMA4GA1UEBxMHUmVkbW9uZDEeMBwGA1UEChMVTWljcm9z
-# b2Z0IENvcnBvcmF0aW9uMSYwJAYDVQQDEx1NaWNyb3NvZnQgVGltZS1TdGFtcCBQ
-# Q0EgMjAxMAITMwAAAY/zUajrWnLdzAABAAABjzAiBCD5OOoQCiYDkOSE5Vx0jZ+C
-# HLy9xLQm54oE9Yhz+LBH9zANBgkqhkiG9w0BAQsFAASCAgB5EfmkrQ1xZrhzpWCz
-# KFL1+w+SmwXOyDnA1Ci3fwdzZMiZ0+WHoQLtLJ0hYsoatNUK72wjTl6xEu+0/0+7
-# 9viKB4nS4ZGaQoh/dZCjQDjfc3e+EHjaYsi9o1k+hLte74G13djBsd3msfVnZxJZ
-# lmBb9lEHJQwJ2bAcUseqejgR+l1PszZbZCU+FFUNrIHh1sGGpCeBCPueK7h+qghN
-# GrZG0xbsYlCAdWEe3NK+gSRYVyka8FC63U76um8PkMx9sIAQd3WMOXd4+wfBE/cv
-# FhineLCEVRaK3ooFo/tt3pLENAPPIdUw/fe7c1+Hi2NNm1uiFhA1WbnDg1yyLNRl
-# Pplhdlb29ylPySZ/K1tdJzm+OlwYsKkmdb9bf+0adL9R9tw7UGw8tbkFdFz1F8+q
-# QQRSx00kv9JTMZcmgs8qbe6WpcQEIPznmuFHeP2xAO9NHyUVu6ZLFdFTFPvqVB6A
-# j42JPiUgsqHMS06XgPH7lMNDFcMUxV+IyesMAw4eei1ys7m5QlC+XOgGuzcMXOfo
-# AEIgG28XMahed97gVTtGN4Ls9wVil9KTp0s39y2tVZ9AdVLB7SbZSwjc5A9DHdPS
-# ZhimYgf5nSg2aE6B3BkWM5v8O730iylhXtpKc+wZmpOSow45AwjOQRX3QEVY3shu
-# /PdcJmxHZTf2cc9byuoqV+bF+A==
+# HAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xKTAnBgNVBAsTIE1pY3Jvc29m
+# dCBPcGVyYXRpb25zIFB1ZXJ0byBSaWNvMSYwJAYDVQQLEx1UaGFsZXMgVFNTIEVT
+# Tjo0RDJGLUUzREQtQkVFRjElMCMGA1UEAxMcTWljcm9zb2Z0IFRpbWUtU3RhbXAg
+# U2VydmljZaIjCgEBMAcGBSsOAwIaAxUAAp4vkN3fD5FNBVYZklZeS/JFPBiggYMw
+# gYCkfjB8MQswCQYDVQQGEwJVUzETMBEGA1UECBMKV2FzaGluZ3RvbjEQMA4GA1UE
+# BxMHUmVkbW9uZDEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9uMSYwJAYD
+# VQQDEx1NaWNyb3NvZnQgVGltZS1TdGFtcCBQQ0EgMjAxMDANBgkqhkiG9w0BAQUF
+# AAIFAOatLX4wIhgPMjAyMjA4MjIwMjE3MzRaGA8yMDIyMDgyMzAyMTczNFowdDA6
+# BgorBgEEAYRZCgQBMSwwKjAKAgUA5q0tfgIBADAHAgEAAgIdXDAHAgEAAgIRTzAK
+# AgUA5q5+/gIBADA2BgorBgEEAYRZCgQCMSgwJjAMBgorBgEEAYRZCgMCoAowCAIB
+# AAIDB6EgoQowCAIBAAIDAYagMA0GCSqGSIb3DQEBBQUAA4GBACLnoXoMK8a0grjs
+# z0wTRM6rqtEyU5/zP+9mM3C7S7tRAKFVlpLXbPqmBH8Pxfhcr/vrUkqBShntkTzs
+# tcwGRIqn7+waElu4UEGFO776OVjy9H7I7ooMloptsg3GLy8rq+NvoLFbR19JO6BV
+# AenvBVUkAbXRx4ObceuCiHeGwxzCMYIEDTCCBAkCAQEwgZMwfDELMAkGA1UEBhMC
+# VVMxEzARBgNVBAgTCldhc2hpbmd0b24xEDAOBgNVBAcTB1JlZG1vbmQxHjAcBgNV
+# BAoTFU1pY3Jvc29mdCBDb3Jwb3JhdGlvbjEmMCQGA1UEAxMdTWljcm9zb2Z0IFRp
+# bWUtU3RhbXAgUENBIDIwMTACEzMAAAGwoeODMuiNO8AAAQAAAbAwDQYJYIZIAWUD
+# BAIBBQCgggFKMBoGCSqGSIb3DQEJAzENBgsqhkiG9w0BCRABBDAvBgkqhkiG9w0B
+# CQQxIgQgUnFKjic4MO5e9QymkcLJBAK9RONT2UL61DEH73cKlx0wgfoGCyqGSIb3
+# DQEJEAIvMYHqMIHnMIHkMIG9BCDNBgtDd8uf9KTjGf1G67IfKmcNFJmeWTd6ilAy
+# 5xWEoDCBmDCBgKR+MHwxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9u
+# MRAwDgYDVQQHEwdSZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRp
+# b24xJjAkBgNVBAMTHU1pY3Jvc29mdCBUaW1lLVN0YW1wIFBDQSAyMDEwAhMzAAAB
+# sKHjgzLojTvAAAEAAAGwMCIEILf8jL9uLIB5lweshOeNEDaaS3OkkVNKzXtGSPGe
+# OA0pMA0GCSqGSIb3DQEBCwUABIICADFnt84VvdeZmozblggUslEBfNRCifKOMPYl
+# 2nbYsqLrKEN0I79QmCSsGHVmPkML+1CmLoJN5lJVArhsz90aJ+iJMaazMV/b8FO7
+# 5F+s1Cib6IhUEU4P+eRrZj1RVJKpmYqKd1r5djcZ+WClU0c35E/0GlQS9dldvCJL
+# Vq//Egdli3YNZTicZgbA+BWQVZdrfi0JoSe9hoIBk+tFHRQDBtsGeDAGiAJ+nKYg
+# gZW7z+nj7Yer4CrotjIJxlSs9UyZm5nhnFlgplQQBEygkgtU+f+vaewC1DspqCqP
+# WmQ0HR55C0xkt5q7qH5BacOb8Hh/1QMD2oclbEXO38ICyUg54mMO78KhDUS2ybw+
+# aMyOFogkUKXOys6K/v4ezhoLKD0cYsP2itg3SHvGuVPaCErmkzRZVeD/dwXfy9aN
+# iC+nhkRNg8hE6bzwkvHdOaouq4OXFs1u/Myipxcx3VPmZcvpjcDHnWQnf5mfBukt
+# Dznqc38g8qrTDp72/CEWKrCAICt71Mb53ZXwEGoHZHuqrqDHxazf5/FiXtmS4DcG
+# wfIxQCSjXHaSFs3NcNQBQ9jY9a/CDhqpMMZNmh3FSLMDpJPiKCJ3XoAU3CRHRhaT
+# gLBWfl4Bjsk3xXGJCuUJX5nuzsQTuc3hcRh+IDLF76rCwY9YbWgBotNhXBOUilLY
+# UNC4avRk
 # SIG # End signature block
