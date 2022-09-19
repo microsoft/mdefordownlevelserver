@@ -59,7 +59,7 @@ param(
     [switch] $NoEtl)
  
     
-    
+   
 function Get-TraceMessage {
     [OutputType([string])]
     param(
@@ -231,8 +231,6 @@ function Test-CurrentUserIsInRole {
     }
     return $false
 }
-
-
 
 function Get-GuidHelper {
     [CmdletBinding()]
@@ -461,72 +459,10 @@ function Invoke-MpCmdRun {
     Measure-Process @startParams
 }
 
-@(
-    @{ Name = 'ERR_INTERNAL'; Value = 1 }
-    @{ Name = 'ERR_INSUFFICIENT_PRIVILEGES'; Value = 3 }
-    @{ Name = 'ERR_NO_INTERNET_CONNECTIVITY'; Value = 4 }
-    @{ Name = 'ERR_CONFLICTING_APPS'; Value = 5 }
-    @{ Name = 'ERR_INVALID_PARAMETER'; Value = 6 }
-    @{ Name = 'ERR_UNSUPPORTED_DISTRO'; Value = 10 }
-    @{ Name = 'ERR_UNSUPPORTED_VERSION'; Value = 11 }
-    @{ Name = 'ERR_PENDING_REBOOT'; Value = 12 }
-    @{ Name = 'ERR_INSUFFICIENT_REQUIREMENTS'; Value = 13 }
-    @{ Name = 'ERR_UNEXPECTED_STATE'; Value = 14 }
-    @{ Name = 'ERR_CORRUPTED_FILE'; Value = 15 }
-    @{ Name = 'ERR_MSI_NOT_FOUND'; Value = 16 }
-    @{ Name = 'ERR_ALREADY_UNINSTALLED'; Value = 17 }
-    @{ Name = 'ERR_DIRECTORY_NOT_WRITABLE'; Value = 18 }
-    @{ Name = 'ERR_MDE_NOT_INSTALLED'; Value = 20 }
-    @{ Name = 'ERR_INSTALLATION_FAILED'; Value = 21 }
-    @{ Name = 'ERR_UNINSTALLATION_FAILED'; Value = 22 }
-    @{ Name = 'ERR_FAILED_DEPENDENCY'; Value = 23 }
-    @{ Name = 'ERR_ONBOARDING_NOT_FOUND'; Value = 30 }
-    @{ Name = 'ERR_ONBOARDING_FAILED'; Value = 31 }
-    @{ Name = 'ERR_OFFBOARDING_NOT_FOUND'; Value = 32 }
-    @{ Name = 'ERR_OFFBOARDING_FAILED'; Value = 33 }
-    @{ Name = 'ERR_NOT_ONBOARDED'; Value = 34 }
-    @{ Name = 'ERR_NOT_OFFBOARDED'; Value = 35 }
-    @{ Name = 'ERR_MSI_USED_BY_OTHER_PROCESS'; Value = 36 }
-) | ForEach-Object { 
-    Set-Variable -Name:$_.Name -Value:$_.Value -Option:Constant -Scope:Script 
-}
+function Start-TraceSession {
+    [CmdLetBinding()]
+    param()
 
-Test-ExternalScripts
-if ('Tls12' -notin [Net.ServicePointManager]::SecurityProtocol) {
-    ## Server 2016/2012R2 might not have this one enabled and all Invoke-WebRequest might fail.
-    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-    Trace-Message "[Net.ServicePointManager]::SecurityProtocol updated to '$([Net.ServicePointManager]::SecurityProtocol)'"
-} 
-
-$osVersion = Get-OSVersion
-
-## make sure we capture logs by default.
-[bool] $etl = -not $NoEtl.IsPresent
-[bool] $log = -not $NoMSILog.IsPresent
-
-[string] $msi = if ((-not $DevMode.IsPresent) -and (Test-Path -Path "$PSScriptRoot\md4ws.msi")) {
-    Join-Path -Path:$PSScriptRoot "md4ws.msi"
-} else {
-    ## for devmode we always capture logs.
-    $etl = $true
-    $log = $true
-    Join-Path -Path:$PSScriptRoot "md4ws-devmode.msi"
-}
-
-$action = if ($Uninstall.IsPresent) { 'uninstall' }  else { 'install' }
-$logBase = "$action-$env:COMPUTERNAME-$osVersion"
-
-## make sure $PSSCriptRoot is writable. 
-$tempFile = Join-Path -Path:$PSScriptRoot "$([guid]::NewGuid().Guid).tmp"
-Set-Content -LiteralPath:$tempFile -Value:'' -ErrorAction:SilentlyContinue
-if (-not (Test-Path -LiteralPath:$tempFile -PathType:Leaf)) {
-    Exit-Install "Cannot create $tempFile. Is $PSScriptRoot writable?" -ExitCode:$ERR_DIRECTORY_NOT_WRITABLE
-} else {
-    Remove-Item -LiteralPath:$tempFile -ErrorAction:SilentlyContinue
-    $tempFile = $null
-}
-
-if ($etl) {
     $guid = [guid]::NewGuid().Guid
     $wdprov = Join-Path -Path:$env:TEMP "$guid.temp"
     $tempFile = Join-Path -Path:$env:TEMP "$guid.etl"
@@ -612,7 +548,72 @@ if ($etl) {
             Remove-Item -LiteralPath:$wdprov -ErrorAction:Continue
         }
     }
+    return $etlParams
 }
+
+@(
+    @{ Name = 'ERR_INTERNAL'; Value = 1 }
+    @{ Name = 'ERR_INSUFFICIENT_PRIVILEGES'; Value = 3 }
+    @{ Name = 'ERR_NO_INTERNET_CONNECTIVITY'; Value = 4 }
+    @{ Name = 'ERR_CONFLICTING_APPS'; Value = 5 }
+    @{ Name = 'ERR_INVALID_PARAMETER'; Value = 6 }
+    @{ Name = 'ERR_UNSUPPORTED_DISTRO'; Value = 10 }
+    @{ Name = 'ERR_UNSUPPORTED_VERSION'; Value = 11 }
+    @{ Name = 'ERR_PENDING_REBOOT'; Value = 12 }
+    @{ Name = 'ERR_INSUFFICIENT_REQUIREMENTS'; Value = 13 }
+    @{ Name = 'ERR_UNEXPECTED_STATE'; Value = 14 }
+    @{ Name = 'ERR_CORRUPTED_FILE'; Value = 15 }
+    @{ Name = 'ERR_MSI_NOT_FOUND'; Value = 16 }
+    @{ Name = 'ERR_ALREADY_UNINSTALLED'; Value = 17 }
+    @{ Name = 'ERR_DIRECTORY_NOT_WRITABLE'; Value = 18 }
+    @{ Name = 'ERR_MDE_NOT_INSTALLED'; Value = 20 }
+    @{ Name = 'ERR_INSTALLATION_FAILED'; Value = 21 }
+    @{ Name = 'ERR_UNINSTALLATION_FAILED'; Value = 22 }
+    @{ Name = 'ERR_FAILED_DEPENDENCY'; Value = 23 }
+    @{ Name = 'ERR_ONBOARDING_NOT_FOUND'; Value = 30 }
+    @{ Name = 'ERR_ONBOARDING_FAILED'; Value = 31 }
+    @{ Name = 'ERR_OFFBOARDING_NOT_FOUND'; Value = 32 }
+    @{ Name = 'ERR_OFFBOARDING_FAILED'; Value = 33 }
+    @{ Name = 'ERR_NOT_ONBOARDED'; Value = 34 }
+    @{ Name = 'ERR_NOT_OFFBOARDED'; Value = 35 }
+    @{ Name = 'ERR_MSI_USED_BY_OTHER_PROCESS'; Value = 36 }
+) | ForEach-Object { 
+    Set-Variable -Name:$_.Name -Value:$_.Value -Option:Constant -Scope:Script 
+}
+
+Test-ExternalScripts
+if ('Tls12' -notin [Net.ServicePointManager]::SecurityProtocol) {
+    ## Server 2016/2012R2 might not have this one enabled and all Invoke-WebRequest might fail.
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    Trace-Message "[Net.ServicePointManager]::SecurityProtocol updated to '$([Net.ServicePointManager]::SecurityProtocol)'"
+} 
+
+$osVersion = Get-OSVersion
+
+## make sure we capture logs by default.
+[bool] $etl = -not $NoEtl.IsPresent
+[bool] $log = -not $NoMSILog.IsPresent
+
+[string] $msi = if ((-not $DevMode.IsPresent) -and (Test-Path -Path "$PSScriptRoot\md4ws.msi")) {
+    Join-Path -Path:$PSScriptRoot "md4ws.msi"
+} else {
+    Join-Path -Path:$PSScriptRoot "md4ws-devmode.msi"
+}
+
+$action = if ($Uninstall.IsPresent) { 'uninstall' }  else { 'install' }
+$logBase = "$action-$env:COMPUTERNAME-$osVersion"
+
+## make sure $PSSCriptRoot is writable. 
+$tempFile = Join-Path -Path:$PSScriptRoot "$([guid]::NewGuid().Guid).tmp"
+Set-Content -LiteralPath:$tempFile -Value:'' -ErrorAction:SilentlyContinue
+if (-not (Test-Path -LiteralPath:$tempFile -PathType:Leaf)) {
+    Exit-Install "Cannot create $tempFile. Is $PSScriptRoot writable?" -ExitCode:$ERR_DIRECTORY_NOT_WRITABLE
+} else {
+    Remove-Item -LiteralPath:$tempFile -ErrorAction:SilentlyContinue
+    $tempFile = $null
+}
+
+$etlParams = @{}
 
 try {
     $tempMsiLog = Join-Path -Path:$env:TEMP "$([guid]::NewGuid().Guid).log"
@@ -646,10 +647,16 @@ try {
     ## The new name is 'Microsoft Defender for Endpoint' - to avoid confusions on Server 2016.
     $displayName = 'Microsoft Defender for (Windows Server|Endpoint)'
     $uninstallGUID = Get-UninstallGuid -DisplayName:$displayName
-    
+
+    ## Next 3 traces are here because they are helpful for investigations.
+    $buildLabEx = Get-RegistryKey -LiteralPath:'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name:'BuildLabEx'
+    Trace-Message "BuildLabEx: $buildLabEx"
+    $editionID = Get-RegistryKey -LiteralPath:'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name:'EditionID'
+    Trace-Message "EditionID: $editionID"
+    $scriptPath = $MyInvocation.MyCommand.Path
+    Trace-Message "$($(Get-FileHash -LiteralPath:$scriptPath).Hash) $scriptPath"
+
     if ($action -eq 'install') {
-        $buildLabEx = Get-RegistryKey -LiteralPath:'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name:'BuildLabEx'
-        Trace-Message "BuildLabEx: $buildLabEx"
         if ($osVersion.Major -eq 6 -and $osVersion.Minor -eq 3) {
             $windefend = Get-Service -Name:'WinDefend' -ErrorAction:SilentlyContinue
             $wdnissvc = Get-Service -Name:'WdNisSvc' -ErrorAction:SilentlyContinue
@@ -831,39 +838,54 @@ try {
                             ## Download $updatePlatformBaseName from $uri *only if* the UpdatePlatform is not present.
                             $uri = 'https://go.microsoft.com/fwlink/?linkid=870379&arch=x64'
                             Trace-Message "$updatePlatformBaseName not present under $PSScriptRoot"
-                            $latestVersion = ([xml]((Invoke-WebRequest -UseBasicParsing -Uri:"$uri&action=info").Content)).versions.platform
+                            
+                            try {
+                                $latestVersion = ([xml]((Invoke-WebRequest -UseBasicParsing -Uri:"$uri&action=info").Content)).versions.platform
+                            } catch {
+                                Trace-Warning "Error: $_"
+                                Exit-Install "Cannot download the latest $updatePlatformBaseName. Please download it from $uri under $PSScriptRoot\$updatePlatformBaseName" -ExitCode:$ERR_NO_INTERNET_CONNECTIVITY
+                            }
+
                             if ($latestVersion -lt $msiVersion) {
                                 Trace-Warning "Changing $msiVersion from $msiVersion to $latestVersion"
                                 $msiVersion = $latestVersion
                             }
-                            Trace-Message "Downloading latest $updatePlatformBaseName (version $latestVersion) from $uri"
-                            $deleteUpdatePlatform = $true
-                            Invoke-WebRequest -UseBasicParsing -Uri:$uri -OutFile:$updatePlatform
+                            
+                            if ($latestVersion -gt $currentVersion) {
+                                Trace-Message "Downloading latest $updatePlatformBaseName (version $latestVersion) from $uri"
+                                $deleteUpdatePlatform = $true
+                                Invoke-WebRequest -UseBasicParsing -Uri:$uri -OutFile:$updatePlatform
+                            } else {
+                                Trace-Message "Running platform is up-to-date"
+                            }
                         }
-                        $updatePlatformVersion = Get-FileVersion -File:$updatePlatform
-                        if ($updatePlatformVersion -lt $msiVersion) {
-                            Exit-Install "Minimum required version is $msiVersion. $updatePlatform version is $updatePlatformVersion" -ExitCode:$ERR_INSUFFICIENT_REQUIREMENTS
-                        }
+                        
+                        if (Test-Path -LiteralPath:$updatePlatform -PathType:Leaf) {
+                            $updatePlatformVersion = Get-FileVersion -File:$updatePlatform
+                            if ($updatePlatformVersion -lt $msiVersion) {
+                                Exit-Install "Minimum required version is $msiVersion. $updatePlatform version is $updatePlatformVersion" -ExitCode:$ERR_INSUFFICIENT_REQUIREMENTS
+                            }
 
-                        $status = (Get-AuthenticodeSignature -FilePath:$updatePlatform).Status
-                        if ($status -ne 'Valid') {
-                            Exit-Install "Unexpected authenticode signature status($status) for $updatePlatform" -ExitCode:$ERR_CORRUPTED_FILE
-                        }
-                        ## make sure the right file was downloaded (or present in this directory)
-                        $fileInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($updatePlatform)
-                        if ($updatePlatformBaseName -ne $fileInfo.InternalName) {
-                            Exit-Install "Unexpected file: $updatePlatform, InternalName='$($fileInfo.InternalName)' (expecting '$updatePlatformBaseName')" -ExitCode:$ERR_CORRUPTED_FILE
-                        }                       
-                        if ('Microsoft Malware Protection' -ne $fileInfo.ProductName) {
-                            Exit-Install "Unexpected file: $updatePlatform, ProductName='$($fileInfo.ProductName)' (expecting 'Microsoft Malware Protection')" -ExitCode:$ERR_CORRUPTED_FILE
-                        }
+                            $status = (Get-AuthenticodeSignature -FilePath:$updatePlatform).Status
+                            if ($status -ne 'Valid') {
+                                Exit-Install "Unexpected authenticode signature status($status) for $updatePlatform" -ExitCode:$ERR_CORRUPTED_FILE
+                            }
+                            ## make sure the right file was downloaded (or present in this directory)
+                            $fileInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($updatePlatform)
+                            if ($updatePlatformBaseName -ne $fileInfo.InternalName) {
+                                Exit-Install "Unexpected file: $updatePlatform, InternalName='$($fileInfo.InternalName)' (expecting '$updatePlatformBaseName')" -ExitCode:$ERR_CORRUPTED_FILE
+                            }                       
+                            if ('Microsoft Malware Protection' -ne $fileInfo.ProductName) {
+                                Exit-Install "Unexpected file: $updatePlatform, ProductName='$($fileInfo.ProductName)' (expecting 'Microsoft Malware Protection')" -ExitCode:$ERR_CORRUPTED_FILE
+                            }
 
-                        Trace-Message ("Running $updatePlatformBaseName (version {0})" -f (Get-FileVersion -File:$updatePlatform))
-                        Measure-Process -FilePath:$updatePlatform
-                        $imageName = (Get-ItemPropertyValue -LiteralPath:'HKLM:\SYSTEM\CurrentControlSet\Services\WinDefend' -Name:ImagePath) -replace '"', ''
-                        $currentVersion = Get-FileVersion -File:$imageName
-                        if ($currentVersion -lt $latestVersion) {
-                            Exit-Install "Current version is $currentVersion, expected to be at least $latestVersion" -ExitCode:$ERR_INSUFFICIENT_REQUIREMENTS
+                            Trace-Message ("Running $updatePlatformBaseName (version {0})" -f (Get-FileVersion -File:$updatePlatform))
+                            Measure-Process -FilePath:$updatePlatform
+                            $imageName = (Get-ItemPropertyValue -LiteralPath:'HKLM:\SYSTEM\CurrentControlSet\Services\WinDefend' -Name:ImagePath) -replace '"', ''
+                            $currentVersion = Get-FileVersion -File:$imageName
+                            if ($currentVersion -lt $latestVersion) {
+                                Exit-Install "Current version is $currentVersion, expected to be at least $latestVersion" -ExitCode:$ERR_INSUFFICIENT_REQUIREMENTS
+                            }
                         }
                         Trace-Message "Current platform version is $currentVersion"
                     }
@@ -976,6 +998,10 @@ try {
         $argumentList += 'FORCEPASSIVEMODE=1'
     }
     
+    if ($etl) {
+        $etlParams = Start-TraceSession
+    }
+
     $exitCode = Measure-Process -FilePath:$((Get-Command 'msiexec.exe').Path) -ArgumentList:$argumentList -PassThru
     if (0 -eq $exitCode) {
         Trace-Message "$action successful."
@@ -1023,28 +1049,32 @@ try {
         Trace-Message ("Closing handle {0}" -f $msiStream.SafeFileHandle.DangerousGetHandle())
         $msiStream.Close()
     }
-    if ($etl) {
+    if ($etlParams.ContainsKey('ArgumentList')) {
         Invoke-Command @etlparams -ScriptBlock: {
             param($ScriptRoot, $logBase, $wdprov, $tempFile, $etlLog, $wppTracingLevel, $reportingPath)
             & logman.exe stop -n $logBase -ets *>$null
             Trace-Message "Tracing session '$logBase' stopped."
             Remove-ItemProperty -LiteralPath:$reportingPath -Name:$wppTracingLevel -ErrorAction:SilentlyContinue
+            Move-Item -LiteralPath:$tempFile -Destination:$etlLog -ErrorAction:Continue
+            Trace-Message  "ETL file: '$etlLog'."    
         }
-        Move-Item -LiteralPath:$tempFile -Destination:$etlLog -ErrorAction:Continue
-        Trace-Message  "ETL file: '$etlLog'."
-    }   
+    } else {
+        Trace-Message "No etl file generated."
+    }
 
     if ($log -and (Test-Path -LiteralPath:$tempMsiLog -PathType:Leaf)) {
         Move-Item -LiteralPath:$tempMsiLog -Destination:$msiLog -ErrorAction:Continue
         Trace-Message "Msi log: '$msiLog'"
+    } else {
+        Trace-Message "No log file generated."
     }
 }
 #Copyright (C) Microsoft Corporation. All rights reserved.
 # SIG # Begin signature block
-# MIIlggYJKoZIhvcNAQcCoIIlczCCJW8CAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# MIIljwYJKoZIhvcNAQcCoIIlgDCCJXwCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBv0coJipIaxLAt
-# sLcbFf3ZJ3RVS4AdocC5MXlVAsctiqCCC14wggTrMIID06ADAgECAhMzAAAJaWnl
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDUoe7SWm3N0KKG
+# uMmE3pyFecEOXHd0oHzfhlE9eQ/UX6CCC14wggTrMIID06ADAgECAhMzAAAJaWnl
 # VutOg/ZMAAAAAAlpMA0GCSqGSIb3DQEBCwUAMHkxCzAJBgNVBAYTAlVTMRMwEQYD
 # VQQIEwpXYXNoaW5ndG9uMRAwDgYDVQQHEwdSZWRtb25kMR4wHAYDVQQKExVNaWNy
 # b3NvZnQgQ29ycG9yYXRpb24xIzAhBgNVBAMTGk1pY3Jvc29mdCBXaW5kb3dzIFBD
@@ -1105,141 +1135,141 @@ try {
 # rWQQ6DH5ElR5GvIO2NarHjP+AucmbWFJj/Elwot0md/5kxqQHO7dlDMOQlDbf1D4
 # n2KC7KaCFnxmvOyZsMFYXaiwmmEUkdGZL0nkPoGZ1ubvyuP9Pu7sCYYDBw0bDXzr
 # 9FrJlc+HEgpd7MUCks0FmXLKffEqEBg45DGjKLTmTMVSo5xqx33AcQkEDXDeAj+H
-# 7lah7Ou1TIUxghl6MIIZdgIBATCBkDB5MQswCQYDVQQGEwJVUzETMBEGA1UECBMK
+# 7lah7Ou1TIUxghmHMIIZgwIBATCBkDB5MQswCQYDVQQGEwJVUzETMBEGA1UECBMK
 # V2FzaGluZ3RvbjEQMA4GA1UEBxMHUmVkbW9uZDEeMBwGA1UEChMVTWljcm9zb2Z0
 # IENvcnBvcmF0aW9uMSMwIQYDVQQDExpNaWNyb3NvZnQgV2luZG93cyBQQ0EgMjAx
 # MAITMwAACWlp5VbrToP2TAAAAAAJaTANBglghkgBZQMEAgEFAKCBrjAZBgkqhkiG
 # 9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3AgELMQ4wDAYKKwYBBAGCNwIB
-# FTAvBgkqhkiG9w0BCQQxIgQgkMl4B2Luh+RmTRKlNcr7y79wjs/yKV9blNBMZL27
-# NPwwQgYKKwYBBAGCNwIBDDE0MDKgFIASAE0AaQBjAHIAbwBzAG8AZgB0oRqAGGh0
-# dHA6Ly93d3cubWljcm9zb2Z0LmNvbTANBgkqhkiG9w0BAQEFAASCAQBOJKXauvA+
-# 8SFUgvGOF12ePPhRi6Bo++WCuXYsNtLGfnpKOsLPMD/SfL/rwouytzDTPimVQ1LD
-# EG1GugIIlD2o2pPDMBokXFzhumFzVRltmgy263JXXV/U8NRZkyaFhvaACVUe4DME
-# rASU1s/1cJT9EscLxC+TERrcsLNIjCrOAgpCCHKXmgjdt+dn/78gpzJsNvD/MZoR
-# z9JA50zJkQMtPYiKggUpoM5PO5FRf7qr4S4w1MRJhjEjyd791PHNNm7tASBxpReg
-# Zp11I8Zg3Ago9O+5CnMpgBjbOzfTDy4YlYpGviKyUdAMrWLslSKb5kMh3Myg72Al
-# MS7O2T9F6H5SoYIXCTCCFwUGCisGAQQBgjcDAwExghb1MIIW8QYJKoZIhvcNAQcC
-# oIIW4jCCFt4CAQMxDzANBglghkgBZQMEAgEFADCCAVUGCyqGSIb3DQEJEAEEoIIB
-# RASCAUAwggE8AgEBBgorBgEEAYRZCgMBMDEwDQYJYIZIAWUDBAIBBQAEIIu39wX4
-# raexCf1cPM9FeeBZruxD5P/51H7lZTyqlyboAgZi/rqHsdwYEzIwMjIwODIyMDcz
-# ODEyLjc4NFowBIACAfSggdSkgdEwgc4xCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpX
+# FTAvBgkqhkiG9w0BCQQxIgQg5TPbOUDXKuTpWM6misRdsrqvtjQjYpX8hTrDvDb1
+# HUYwQgYKKwYBBAGCNwIBDDE0MDKgFIASAE0AaQBjAHIAbwBzAG8AZgB0oRqAGGh0
+# dHA6Ly93d3cubWljcm9zb2Z0LmNvbTANBgkqhkiG9w0BAQEFAASCAQBGQWlH3z7l
+# WDs0ABHBlDJZwI73tYm5bbl2MYj87bMwtN9nqTzvEiUT/qtiwlIQDPWZhXe8xDXM
+# b7lw4BhnQ8iFdtZ2Bz0LjzwPF4DVcXLiJP4+bhusqWTTu/NVjljhWpkpyolC1eD/
+# lev+aTtgMxGlLahZlK4YrJPeY3FQ+UGf835TG61eEwJQCiRWqXsRSlab8aaEXnbM
+# xLPTq4AKM+z4GcZpp9mMtNMlvMuHmbANQ8OG6vB+nyL8BbqAXH/w4FbruRxUZ0Y9
+# O5NGD6Zp2NQPpWzNjHMYWIKxgRTENYzynuIYf8BcVFhRgcnXtqtnsaPp+0L04DKV
+# DRAgEEF/AbT0oYIXFjCCFxIGCisGAQQBgjcDAwExghcCMIIW/gYJKoZIhvcNAQcC
+# oIIW7zCCFusCAQMxDzANBglghkgBZQMEAgEFADCCAVkGCyqGSIb3DQEJEAEEoIIB
+# SASCAUQwggFAAgEBBgorBgEEAYRZCgMBMDEwDQYJYIZIAWUDBAIBBQAEIHzjHR+U
+# MBdnagn00MpywOpaYzNrL8F6Ai6tBmkWcvlhAgZjEhDo+40YEzIwMjIwOTE5MDcy
+# MzMwLjQ0OVowBIACAfSggdikgdUwgdIxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpX
 # YXNoaW5ndG9uMRAwDgYDVQQHEwdSZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQg
-# Q29ycG9yYXRpb24xKTAnBgNVBAsTIE1pY3Jvc29mdCBPcGVyYXRpb25zIFB1ZXJ0
-# byBSaWNvMSYwJAYDVQQLEx1UaGFsZXMgVFNTIEVTTjo0RDJGLUUzREQtQkVFRjEl
-# MCMGA1UEAxMcTWljcm9zb2Z0IFRpbWUtU3RhbXAgU2VydmljZaCCEVwwggcQMIIE
-# +KADAgECAhMzAAABsKHjgzLojTvAAAEAAAGwMA0GCSqGSIb3DQEBCwUAMHwxCzAJ
-# BgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAwDgYDVQQHEwdSZWRtb25k
-# MR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xJjAkBgNVBAMTHU1pY3Jv
-# c29mdCBUaW1lLVN0YW1wIFBDQSAyMDEwMB4XDTIyMDMwMjE4NTE0MloXDTIzMDUx
-# MTE4NTE0Mlowgc4xCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAw
-# DgYDVQQHEwdSZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24x
-# KTAnBgNVBAsTIE1pY3Jvc29mdCBPcGVyYXRpb25zIFB1ZXJ0byBSaWNvMSYwJAYD
-# VQQLEx1UaGFsZXMgVFNTIEVTTjo0RDJGLUUzREQtQkVFRjElMCMGA1UEAxMcTWlj
-# cm9zb2Z0IFRpbWUtU3RhbXAgU2VydmljZTCCAiIwDQYJKoZIhvcNAQEBBQADggIP
-# ADCCAgoCggIBAJzGbTsM19KCnQc5RC7VoglySXMKLut/yWWPQWD6VAlJgBexVKx2
-# n1zgX3o/xA2ZgZ/NFGcgNDRCJ7mJiOeW7xeHnoNXPlg7EjYWulfk3oOAj6a7O15G
-# vckpYsvLcx+o8Se8CrfIb40EJ8W0Qx4TIXf0yDwAJ4/qO94dJ/hGabeJYg4Gp0G0
-# uQmhwFovAWTHlD1ci+sp36AxT9wIhHqw/70tzMvrnDF7jmQjaVUPnjOgPOyFWZiV
-# r7e6rkSl4anT1tLv23SWhXqMs14wolv4ZeQcWP84rV2Frr1KbwkIa0vlHjlv4xG9
-# a6nlTRfo0CYUQDfrZOMXCI5KcAN2BZ6fVb09qtCdsWdNNxB0y4lwMjnuNmx85FNf
-# zPcMZjmwAF9aRUUMLHv626I67t1+dZoVPpKqfSNmGtVt9DETWkmDipnGg4+BdTpl
-# vgGVq9F3KZPDFHabxbLpSWfXW90MZXOuFH8yCMzDJNUzeyAqytFFyLZir3j4T1Gx
-# 7lReCOUPw1puVzbWKspV7ModZjtN/IUWdVIdk3HPp4QN1wwdVvdXOsYdhG8kgjGy
-# AZID5or7C/75hyKQb5F0Z+Ee04uY9K+sDZ3l3z8TQZWAfYurbZCMWWnmJVsu5V4P
-# R5PO+U6D7tAtMvMULNYibT9+sxVZK/WQer2JJ9q3Z7ljFs4lgpmfc6AVAgMBAAGj
-# ggE2MIIBMjAdBgNVHQ4EFgQUOt8BJDcBJm4dy6ASZHrXIEfWNj8wHwYDVR0jBBgw
-# FoAUn6cVXQBeYl2D9OXSZacbUzUZ6XIwXwYDVR0fBFgwVjBUoFKgUIZOaHR0cDov
-# L3d3dy5taWNyb3NvZnQuY29tL3BraW9wcy9jcmwvTWljcm9zb2Z0JTIwVGltZS1T
-# dGFtcCUyMFBDQSUyMDIwMTAoMSkuY3JsMGwGCCsGAQUFBwEBBGAwXjBcBggrBgEF
-# BQcwAoZQaHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraW9wcy9jZXJ0cy9NaWNy
-# b3NvZnQlMjBUaW1lLVN0YW1wJTIwUENBJTIwMjAxMCgxKS5jcnQwDAYDVR0TAQH/
-# BAIwADATBgNVHSUEDDAKBggrBgEFBQcDCDANBgkqhkiG9w0BAQsFAAOCAgEA3XPi
-# h5sNtUfAyLnlXq6MZSpCh0TF+uG+nhIJ44//cMcQGEViZ2N263NwvrQjCFOni/+o
-# xf76jcmUhcKWLXk9hhd7vfFBhZZzcF5aNs07Uligs24pveasFuhmJ4y82OYm1G1O
-# RYsFndZdvF//NrYGxaXqUNlRHQlskV/pmccqO3Oi6wLHcPB1/WRTLJtYbIiiwE/u
-# TFEFEL45wWD/1mTCPEkFX3hliXEypxXzdZ1k6XqGTysGAtLXUB7IC6CH26YygKQu
-# XG8QjcJBAUG/9F3yNZOdbFvn7FinZyNcIVLxld7h0bELfQzhIjelj+5sBKhLcaFU
-# 0vbjbmf0WENgFmnyJNiMrL7/2FYOLsgiQDbJx6Dpy1EfvuRGsdL5f+jVVds5oMaK
-# rhxgV7oEobrA6Z56nnWYN47swwouucHf0ym1DQWHy2DHOFRRN7yv++zes0GSCOjR
-# RYPK7rr1Qc+O3nsd604Ogm5nR9QqhOOc2OQTrvtSgXBStu5vF6W8DPcsns53cQ4g
-# dcR1Y9Ng5IYEwxCZzzYsq9oalxlH+ZH/A6J7ZMeSNKNkrXPx6ppFXUxHuC3k4mzV
-# yZNGWP/ZgcUOi2qV03m6Imytvi1kfGe6YdCh32POgWeNH9lfKt+d1M+q4IhJLmX0
-# E2ZZICYEb9Q0romeMX8GZ+cbhuNsFimJga/fjjswggdxMIIFWaADAgECAhMzAAAA
-# FcXna54Cm0mZAAAAAAAVMA0GCSqGSIb3DQEBCwUAMIGIMQswCQYDVQQGEwJVUzET
-# MBEGA1UECBMKV2FzaGluZ3RvbjEQMA4GA1UEBxMHUmVkbW9uZDEeMBwGA1UEChMV
-# TWljcm9zb2Z0IENvcnBvcmF0aW9uMTIwMAYDVQQDEylNaWNyb3NvZnQgUm9vdCBD
-# ZXJ0aWZpY2F0ZSBBdXRob3JpdHkgMjAxMDAeFw0yMTA5MzAxODIyMjVaFw0zMDA5
-# MzAxODMyMjVaMHwxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAw
-# DgYDVQQHEwdSZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24x
-# JjAkBgNVBAMTHU1pY3Jvc29mdCBUaW1lLVN0YW1wIFBDQSAyMDEwMIICIjANBgkq
-# hkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA5OGmTOe0ciELeaLL1yR5vQ7VgtP97pwH
-# B9KpbE51yMo1V/YBf2xK4OK9uT4XYDP/XE/HZveVU3Fa4n5KWv64NmeFRiMMtY0T
-# z3cywBAY6GB9alKDRLemjkZrBxTzxXb1hlDcwUTIcVxRMTegCjhuje3XD9gmU3w5
-# YQJ6xKr9cmmvHaus9ja+NSZk2pg7uhp7M62AW36MEBydUv626GIl3GoPz130/o5T
-# z9bshVZN7928jaTjkY+yOSxRnOlwaQ3KNi1wjjHINSi947SHJMPgyY9+tVSP3PoF
-# VZhtaDuaRr3tpK56KTesy+uDRedGbsoy1cCGMFxPLOJiss254o2I5JasAUq7vnGp
-# F1tnYN74kpEeHT39IM9zfUGaRnXNxF803RKJ1v2lIH1+/NmeRd+2ci/bfV+Autuq
-# fjbsNkz2K26oElHovwUDo9Fzpk03dJQcNIIP8BDyt0cY7afomXw/TNuvXsLz1dhz
-# PUNOwTM5TI4CvEJoLhDqhFFG4tG9ahhaYQFzymeiXtcodgLiMxhy16cg8ML6EgrX
-# Y28MyTZki1ugpoMhXV8wdJGUlNi5UPkLiWHzNgY1GIRH29wb0f2y1BzFa/ZcUlFd
-# Etsluq9QBXpsxREdcu+N+VLEhReTwDwV2xo3xwgVGD94q0W29R6HXtqPnhZyacau
-# e7e3PmriLq0CAwEAAaOCAd0wggHZMBIGCSsGAQQBgjcVAQQFAgMBAAEwIwYJKwYB
-# BAGCNxUCBBYEFCqnUv5kxJq+gpE8RjUpzxD/LwTuMB0GA1UdDgQWBBSfpxVdAF5i
-# XYP05dJlpxtTNRnpcjBcBgNVHSAEVTBTMFEGDCsGAQQBgjdMg30BATBBMD8GCCsG
-# AQUFBwIBFjNodHRwOi8vd3d3Lm1pY3Jvc29mdC5jb20vcGtpb3BzL0RvY3MvUmVw
-# b3NpdG9yeS5odG0wEwYDVR0lBAwwCgYIKwYBBQUHAwgwGQYJKwYBBAGCNxQCBAwe
-# CgBTAHUAYgBDAEEwCwYDVR0PBAQDAgGGMA8GA1UdEwEB/wQFMAMBAf8wHwYDVR0j
-# BBgwFoAU1fZWy4/oolxiaNE9lJBb186aGMQwVgYDVR0fBE8wTTBLoEmgR4ZFaHR0
-# cDovL2NybC5taWNyb3NvZnQuY29tL3BraS9jcmwvcHJvZHVjdHMvTWljUm9vQ2Vy
-# QXV0XzIwMTAtMDYtMjMuY3JsMFoGCCsGAQUFBwEBBE4wTDBKBggrBgEFBQcwAoY+
-# aHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraS9jZXJ0cy9NaWNSb29DZXJBdXRf
-# MjAxMC0wNi0yMy5jcnQwDQYJKoZIhvcNAQELBQADggIBAJ1VffwqreEsH2cBMSRb
-# 4Z5yS/ypb+pcFLY+TkdkeLEGk5c9MTO1OdfCcTY/2mRsfNB1OW27DzHkwo/7bNGh
-# lBgi7ulmZzpTTd2YurYeeNg2LpypglYAA7AFvonoaeC6Ce5732pvvinLbtg/SHUB
-# 2RjebYIM9W0jVOR4U3UkV7ndn/OOPcbzaN9l9qRWqveVtihVJ9AkvUCgvxm2EhIR
-# XT0n4ECWOKz3+SmJw7wXsFSFQrP8DJ6LGYnn8AtqgcKBGUIZUnWKNsIdw2FzLixr
-# e24/LAl4FOmRsqlb30mjdAy87JGA0j3mSj5mO0+7hvoyGtmW9I/2kQH2zsZ0/fZM
-# cm8Qq3UwxTSwethQ/gpY3UA8x1RtnWN0SCyxTkctwRQEcb9k+SS+c23Kjgm9swFX
-# SVRk2XPXfx5bRAGOWhmRaw2fpCjcZxkoJLo4S5pu+yFUa2pFEUep8beuyOiJXk+d
-# 0tBMdrVXVAmxaQFEfnyhYWxz/gq77EFmPWn9y8FBSX5+k77L+DvktxW/tM4+pTFR
-# hLy/AsGConsXHRWJjXD+57XQKBqJC4822rpM+Zv/Cuk0+CQ1ZyvgDbjmjJnW4SLq
-# 8CdCPSWU5nR0W2rRnj7tfqAxM328y+l7vzhwRNGQ8cirOoo6CGJ/2XBjU02N7oJt
-# pQUQwXEGahC0HVUzWLOhcGbyoYICzzCCAjgCAQEwgfyhgdSkgdEwgc4xCzAJBgNV
+# Q29ycG9yYXRpb24xLTArBgNVBAsTJE1pY3Jvc29mdCBJcmVsYW5kIE9wZXJhdGlv
+# bnMgTGltaXRlZDEmMCQGA1UECxMdVGhhbGVzIFRTUyBFU046RkM0MS00QkQ0LUQy
+# MjAxJTAjBgNVBAMTHE1pY3Jvc29mdCBUaW1lLVN0YW1wIFNlcnZpY2WgghFlMIIH
+# FDCCBPygAwIBAgITMwAAAY5Z20YAqBCUzAABAAABjjANBgkqhkiG9w0BAQsFADB8
+# MQswCQYDVQQGEwJVUzETMBEGA1UECBMKV2FzaGluZ3RvbjEQMA4GA1UEBxMHUmVk
+# bW9uZDEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9uMSYwJAYDVQQDEx1N
+# aWNyb3NvZnQgVGltZS1TdGFtcCBQQ0EgMjAxMDAeFw0yMTEwMjgxOTI3NDVaFw0y
+# MzAxMjYxOTI3NDVaMIHSMQswCQYDVQQGEwJVUzETMBEGA1UECBMKV2FzaGluZ3Rv
+# bjEQMA4GA1UEBxMHUmVkbW9uZDEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0
+# aW9uMS0wKwYDVQQLEyRNaWNyb3NvZnQgSXJlbGFuZCBPcGVyYXRpb25zIExpbWl0
+# ZWQxJjAkBgNVBAsTHVRoYWxlcyBUU1MgRVNOOkZDNDEtNEJENC1EMjIwMSUwIwYD
+# VQQDExxNaWNyb3NvZnQgVGltZS1TdGFtcCBTZXJ2aWNlMIICIjANBgkqhkiG9w0B
+# AQEFAAOCAg8AMIICCgKCAgEAqiMCq6OMzLa5wrtcf7Bf9f1WXW9kpqbOBzgPJvaG
+# LrZG7twgwqTRWf1FkjpJKBOG5QPIRy7a6IFVAy0W+tBaFX4In4DbBf2tGubyY9+h
+# RU+hRewPJH5CYOvpPh77FfGM63+OlwRXp5YER6tC0WRKn3mryWpt4CwADuGv0LD2
+# QjnhhgtRVidsiDnn9+aLjMuNapUhstGqCr7JcQZt0ZrPUHW/TqTJymeU1eqgNorE
+# bTed6UQyLaTVAmhXNQXDChfa526nW7RQ7L4tXX9Lc0oguiCSkPlu5drNA6NM8z+U
+# XQOAHxVfIQXmi+Y3SV2hr2dcxby9nlTzYvf4ZDr5Wpcwt7tTdRIJibXHsXWMKrmO
+# ziliGDToLx34a/ctZE4NOLnlrKQWN9ZG+Ox5zRarK1EhShahM0uQNhb6BJjp3+c0
+# eNzMFJ2qLZqDp2/3Yl5Q+4k+MDHLTipP6VBdxcdVfd4mgrVTx3afO5KNfgMngGGf
+# hSawGraRW28EhrLOspmIxii92E7vjncJ2tcjhLCjBArVpPh3cZG5g3ZVy5iiAaoD
+# aswpNgnMFAK5Un1reK+MFhPi9iMnvUPwtTDDJt5YED5DAT3mBUxp5QH3t7RhZwAJ
+# NLWLtpTeGF7ub81sSKYv2ardazAe9XLS10tV2oOPrcniGJzlXW7VPvxqQNxe8lCD
+# A20CAwEAAaOCATYwggEyMB0GA1UdDgQWBBTsQfkz9gT44N/5G8vNHayep+aV5DAf
+# BgNVHSMEGDAWgBSfpxVdAF5iXYP05dJlpxtTNRnpcjBfBgNVHR8EWDBWMFSgUqBQ
+# hk5odHRwOi8vd3d3Lm1pY3Jvc29mdC5jb20vcGtpb3BzL2NybC9NaWNyb3NvZnQl
+# MjBUaW1lLVN0YW1wJTIwUENBJTIwMjAxMCgxKS5jcmwwbAYIKwYBBQUHAQEEYDBe
+# MFwGCCsGAQUFBzAChlBodHRwOi8vd3d3Lm1pY3Jvc29mdC5jb20vcGtpb3BzL2Nl
+# cnRzL01pY3Jvc29mdCUyMFRpbWUtU3RhbXAlMjBQQ0ElMjAyMDEwKDEpLmNydDAM
+# BgNVHRMBAf8EAjAAMBMGA1UdJQQMMAoGCCsGAQUFBwMIMA0GCSqGSIb3DQEBCwUA
+# A4ICAQA1UK9xzIeTlKhSbLn0bekR5gYh6bB1XQpluCqCA15skZ37UilaFJw8+Gkl
+# DLzlNhSP2mOiOzVyCq8kkpqnfUc01ZaBezQxg77qevj2iMyg39YJfeiCIhxYOFug
+# wepYrPO8MlB/oue/VhIiDb1eNYTlPSmv3palsgtkrb0oo0F0uWmX4EQVGKRo0UEN
+# tZetVIxa0J9DpUdjQWPeEh9cEM+RgE265w5WAVb+WNx0iWiF4iTbCmrWaVEOX92d
+# NqBm9bT1U7nGwN5CygpNAgEaYnrTMx1N4AjxObACDN5DdvGlu/O0DfMWVc6qk6iK
+# DFC6WpXQSkMlrlXII/Nhp+0+noU6tfEpHKLt7fYm9of5i/QomcCwo/ekiOCjYktp
+# 393ovoC1O2uLtbLnMVlE5raBLBNSbINZ6QLxiA41lXnVVLIzDihUL8MU9CMvG4sd
+# bhk2FX8zvrsP5PeBIw1faenMZuz0V3UXCtU5Okx5fmioWiiLZSCi1ljaxX+BEwQi
+# inCi+vE59bTYI5FbuR8tDuGLiVu/JSpVFXrzWMP2Kn11sCLAGEjqJYUmO1tRY29K
+# d7HcIj2niSB0PQOCjYlnCnywnDinqS1CXvRsisjVlS1Rp4Tmuks+pGxiMGzF58zc
+# b+hoFKyONuL3b+tgxTAz3sF3BVX9uk9M5F+OEoeyLyGfLekNAjCCB3EwggVZoAMC
+# AQICEzMAAAAVxedrngKbSZkAAAAAABUwDQYJKoZIhvcNAQELBQAwgYgxCzAJBgNV
 # BAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAwDgYDVQQHEwdSZWRtb25kMR4w
-# HAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xKTAnBgNVBAsTIE1pY3Jvc29m
-# dCBPcGVyYXRpb25zIFB1ZXJ0byBSaWNvMSYwJAYDVQQLEx1UaGFsZXMgVFNTIEVT
-# Tjo0RDJGLUUzREQtQkVFRjElMCMGA1UEAxMcTWljcm9zb2Z0IFRpbWUtU3RhbXAg
-# U2VydmljZaIjCgEBMAcGBSsOAwIaAxUAAp4vkN3fD5FNBVYZklZeS/JFPBiggYMw
-# gYCkfjB8MQswCQYDVQQGEwJVUzETMBEGA1UECBMKV2FzaGluZ3RvbjEQMA4GA1UE
-# BxMHUmVkbW9uZDEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9uMSYwJAYD
-# VQQDEx1NaWNyb3NvZnQgVGltZS1TdGFtcCBQQ0EgMjAxMDANBgkqhkiG9w0BAQUF
-# AAIFAOatLX4wIhgPMjAyMjA4MjIwMjE3MzRaGA8yMDIyMDgyMzAyMTczNFowdDA6
-# BgorBgEEAYRZCgQBMSwwKjAKAgUA5q0tfgIBADAHAgEAAgIdXDAHAgEAAgIRTzAK
-# AgUA5q5+/gIBADA2BgorBgEEAYRZCgQCMSgwJjAMBgorBgEEAYRZCgMCoAowCAIB
-# AAIDB6EgoQowCAIBAAIDAYagMA0GCSqGSIb3DQEBBQUAA4GBACLnoXoMK8a0grjs
-# z0wTRM6rqtEyU5/zP+9mM3C7S7tRAKFVlpLXbPqmBH8Pxfhcr/vrUkqBShntkTzs
-# tcwGRIqn7+waElu4UEGFO776OVjy9H7I7ooMloptsg3GLy8rq+NvoLFbR19JO6BV
-# AenvBVUkAbXRx4ObceuCiHeGwxzCMYIEDTCCBAkCAQEwgZMwfDELMAkGA1UEBhMC
-# VVMxEzARBgNVBAgTCldhc2hpbmd0b24xEDAOBgNVBAcTB1JlZG1vbmQxHjAcBgNV
-# BAoTFU1pY3Jvc29mdCBDb3Jwb3JhdGlvbjEmMCQGA1UEAxMdTWljcm9zb2Z0IFRp
-# bWUtU3RhbXAgUENBIDIwMTACEzMAAAGwoeODMuiNO8AAAQAAAbAwDQYJYIZIAWUD
-# BAIBBQCgggFKMBoGCSqGSIb3DQEJAzENBgsqhkiG9w0BCRABBDAvBgkqhkiG9w0B
-# CQQxIgQgUnFKjic4MO5e9QymkcLJBAK9RONT2UL61DEH73cKlx0wgfoGCyqGSIb3
-# DQEJEAIvMYHqMIHnMIHkMIG9BCDNBgtDd8uf9KTjGf1G67IfKmcNFJmeWTd6ilAy
-# 5xWEoDCBmDCBgKR+MHwxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9u
-# MRAwDgYDVQQHEwdSZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRp
-# b24xJjAkBgNVBAMTHU1pY3Jvc29mdCBUaW1lLVN0YW1wIFBDQSAyMDEwAhMzAAAB
-# sKHjgzLojTvAAAEAAAGwMCIEILf8jL9uLIB5lweshOeNEDaaS3OkkVNKzXtGSPGe
-# OA0pMA0GCSqGSIb3DQEBCwUABIICADFnt84VvdeZmozblggUslEBfNRCifKOMPYl
-# 2nbYsqLrKEN0I79QmCSsGHVmPkML+1CmLoJN5lJVArhsz90aJ+iJMaazMV/b8FO7
-# 5F+s1Cib6IhUEU4P+eRrZj1RVJKpmYqKd1r5djcZ+WClU0c35E/0GlQS9dldvCJL
-# Vq//Egdli3YNZTicZgbA+BWQVZdrfi0JoSe9hoIBk+tFHRQDBtsGeDAGiAJ+nKYg
-# gZW7z+nj7Yer4CrotjIJxlSs9UyZm5nhnFlgplQQBEygkgtU+f+vaewC1DspqCqP
-# WmQ0HR55C0xkt5q7qH5BacOb8Hh/1QMD2oclbEXO38ICyUg54mMO78KhDUS2ybw+
-# aMyOFogkUKXOys6K/v4ezhoLKD0cYsP2itg3SHvGuVPaCErmkzRZVeD/dwXfy9aN
-# iC+nhkRNg8hE6bzwkvHdOaouq4OXFs1u/Myipxcx3VPmZcvpjcDHnWQnf5mfBukt
-# Dznqc38g8qrTDp72/CEWKrCAICt71Mb53ZXwEGoHZHuqrqDHxazf5/FiXtmS4DcG
-# wfIxQCSjXHaSFs3NcNQBQ9jY9a/CDhqpMMZNmh3FSLMDpJPiKCJ3XoAU3CRHRhaT
-# gLBWfl4Bjsk3xXGJCuUJX5nuzsQTuc3hcRh+IDLF76rCwY9YbWgBotNhXBOUilLY
-# UNC4avRk
+# HAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xMjAwBgNVBAMTKU1pY3Jvc29m
+# dCBSb290IENlcnRpZmljYXRlIEF1dGhvcml0eSAyMDEwMB4XDTIxMDkzMDE4MjIy
+# NVoXDTMwMDkzMDE4MzIyNVowfDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCldhc2hp
+# bmd0b24xEDAOBgNVBAcTB1JlZG1vbmQxHjAcBgNVBAoTFU1pY3Jvc29mdCBDb3Jw
+# b3JhdGlvbjEmMCQGA1UEAxMdTWljcm9zb2Z0IFRpbWUtU3RhbXAgUENBIDIwMTAw
+# ggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDk4aZM57RyIQt5osvXJHm9
+# DtWC0/3unAcH0qlsTnXIyjVX9gF/bErg4r25PhdgM/9cT8dm95VTcVrifkpa/rg2
+# Z4VGIwy1jRPPdzLAEBjoYH1qUoNEt6aORmsHFPPFdvWGUNzBRMhxXFExN6AKOG6N
+# 7dcP2CZTfDlhAnrEqv1yaa8dq6z2Nr41JmTamDu6GnszrYBbfowQHJ1S/rboYiXc
+# ag/PXfT+jlPP1uyFVk3v3byNpOORj7I5LFGc6XBpDco2LXCOMcg1KL3jtIckw+DJ
+# j361VI/c+gVVmG1oO5pGve2krnopN6zL64NF50ZuyjLVwIYwXE8s4mKyzbnijYjk
+# lqwBSru+cakXW2dg3viSkR4dPf0gz3N9QZpGdc3EXzTdEonW/aUgfX782Z5F37Zy
+# L9t9X4C626p+Nuw2TPYrbqgSUei/BQOj0XOmTTd0lBw0gg/wEPK3Rxjtp+iZfD9M
+# 269ewvPV2HM9Q07BMzlMjgK8QmguEOqEUUbi0b1qGFphAXPKZ6Je1yh2AuIzGHLX
+# pyDwwvoSCtdjbwzJNmSLW6CmgyFdXzB0kZSU2LlQ+QuJYfM2BjUYhEfb3BvR/bLU
+# HMVr9lxSUV0S2yW6r1AFemzFER1y7435UsSFF5PAPBXbGjfHCBUYP3irRbb1Hode
+# 2o+eFnJpxq57t7c+auIurQIDAQABo4IB3TCCAdkwEgYJKwYBBAGCNxUBBAUCAwEA
+# ATAjBgkrBgEEAYI3FQIEFgQUKqdS/mTEmr6CkTxGNSnPEP8vBO4wHQYDVR0OBBYE
+# FJ+nFV0AXmJdg/Tl0mWnG1M1GelyMFwGA1UdIARVMFMwUQYMKwYBBAGCN0yDfQEB
+# MEEwPwYIKwYBBQUHAgEWM2h0dHA6Ly93d3cubWljcm9zb2Z0LmNvbS9wa2lvcHMv
+# RG9jcy9SZXBvc2l0b3J5Lmh0bTATBgNVHSUEDDAKBggrBgEFBQcDCDAZBgkrBgEE
+# AYI3FAIEDB4KAFMAdQBiAEMAQTALBgNVHQ8EBAMCAYYwDwYDVR0TAQH/BAUwAwEB
+# /zAfBgNVHSMEGDAWgBTV9lbLj+iiXGJo0T2UkFvXzpoYxDBWBgNVHR8ETzBNMEug
+# SaBHhkVodHRwOi8vY3JsLm1pY3Jvc29mdC5jb20vcGtpL2NybC9wcm9kdWN0cy9N
+# aWNSb29DZXJBdXRfMjAxMC0wNi0yMy5jcmwwWgYIKwYBBQUHAQEETjBMMEoGCCsG
+# AQUFBzAChj5odHRwOi8vd3d3Lm1pY3Jvc29mdC5jb20vcGtpL2NlcnRzL01pY1Jv
+# b0NlckF1dF8yMDEwLTA2LTIzLmNydDANBgkqhkiG9w0BAQsFAAOCAgEAnVV9/Cqt
+# 4SwfZwExJFvhnnJL/Klv6lwUtj5OR2R4sQaTlz0xM7U518JxNj/aZGx80HU5bbsP
+# MeTCj/ts0aGUGCLu6WZnOlNN3Zi6th542DYunKmCVgADsAW+iehp4LoJ7nvfam++
+# Kctu2D9IdQHZGN5tggz1bSNU5HhTdSRXud2f8449xvNo32X2pFaq95W2KFUn0CS9
+# QKC/GbYSEhFdPSfgQJY4rPf5KYnDvBewVIVCs/wMnosZiefwC2qBwoEZQhlSdYo2
+# wh3DYXMuLGt7bj8sCXgU6ZGyqVvfSaN0DLzskYDSPeZKPmY7T7uG+jIa2Zb0j/aR
+# AfbOxnT99kxybxCrdTDFNLB62FD+CljdQDzHVG2dY3RILLFORy3BFARxv2T5JL5z
+# bcqOCb2zAVdJVGTZc9d/HltEAY5aGZFrDZ+kKNxnGSgkujhLmm77IVRrakURR6nx
+# t67I6IleT53S0Ex2tVdUCbFpAUR+fKFhbHP+CrvsQWY9af3LwUFJfn6Tvsv4O+S3
+# Fb+0zj6lMVGEvL8CwYKiexcdFYmNcP7ntdAoGokLjzbaukz5m/8K6TT4JDVnK+AN
+# uOaMmdbhIurwJ0I9JZTmdHRbatGePu1+oDEzfbzL6Xu/OHBE0ZDxyKs6ijoIYn/Z
+# cGNTTY3ugm2lBRDBcQZqELQdVTNYs6FwZvKhggLUMIICPQIBATCCAQChgdikgdUw
+# gdIxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAwDgYDVQQHEwdS
+# ZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xLTArBgNVBAsT
+# JE1pY3Jvc29mdCBJcmVsYW5kIE9wZXJhdGlvbnMgTGltaXRlZDEmMCQGA1UECxMd
+# VGhhbGVzIFRTUyBFU046RkM0MS00QkQ0LUQyMjAxJTAjBgNVBAMTHE1pY3Jvc29m
+# dCBUaW1lLVN0YW1wIFNlcnZpY2WiIwoBATAHBgUrDgMCGgMVAD1iK+pPThHqgpa5
+# xsPmiYruWVuMoIGDMIGApH4wfDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCldhc2hp
+# bmd0b24xEDAOBgNVBAcTB1JlZG1vbmQxHjAcBgNVBAoTFU1pY3Jvc29mdCBDb3Jw
+# b3JhdGlvbjEmMCQGA1UEAxMdTWljcm9zb2Z0IFRpbWUtU3RhbXAgUENBIDIwMTAw
+# DQYJKoZIhvcNAQEFBQACBQDm0k9PMCIYDzIwMjIwOTE5MTAxNTQzWhgPMjAyMjA5
+# MjAxMDE1NDNaMHQwOgYKKwYBBAGEWQoEATEsMCowCgIFAObST08CAQAwBwIBAAIC
+# J0cwBwIBAAICEOkwCgIFAObToM8CAQAwNgYKKwYBBAGEWQoEAjEoMCYwDAYKKwYB
+# BAGEWQoDAqAKMAgCAQACAwehIKEKMAgCAQACAwGGoDANBgkqhkiG9w0BAQUFAAOB
+# gQAZZ2BJJLqD/o+NeILD4RxlBxsTtvAlr5/5rV5KozG7YwX4nqMPv1/AGqiNv0wo
+# Cls1zGVye44r4igrPDCUH59MRIh4bRJ4e1IpAo9dKn/wxBD/oEjl+eHFbrC4VZKx
+# pfnOoiFPKImZVOaAdnQ3yigC6YTu4ySMQEUIPNBgyu10cDGCBA0wggQJAgEBMIGT
+# MHwxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAwDgYDVQQHEwdS
+# ZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xJjAkBgNVBAMT
+# HU1pY3Jvc29mdCBUaW1lLVN0YW1wIFBDQSAyMDEwAhMzAAABjlnbRgCoEJTMAAEA
+# AAGOMA0GCWCGSAFlAwQCAQUAoIIBSjAaBgkqhkiG9w0BCQMxDQYLKoZIhvcNAQkQ
+# AQQwLwYJKoZIhvcNAQkEMSIEILbglW9IIfsY8IUSNNCHxFciIXtGaQwLs8ycro6g
+# MEZFMIH6BgsqhkiG9w0BCRACLzGB6jCB5zCB5DCBvQQgvQWPITvigaUuV5+f/lWs
+# 3BXZwJ/l1mf+yelu5nXmxCUwgZgwgYCkfjB8MQswCQYDVQQGEwJVUzETMBEGA1UE
+# CBMKV2FzaGluZ3RvbjEQMA4GA1UEBxMHUmVkbW9uZDEeMBwGA1UEChMVTWljcm9z
+# b2Z0IENvcnBvcmF0aW9uMSYwJAYDVQQDEx1NaWNyb3NvZnQgVGltZS1TdGFtcCBQ
+# Q0EgMjAxMAITMwAAAY5Z20YAqBCUzAABAAABjjAiBCDSGgMiX2krGAwhpYZ0sVl2
+# qBtwxWi5amewz4KkVcpWCjANBgkqhkiG9w0BAQsFAASCAgAp1yUREFVrthaNzXun
+# tYFft1ALQyyrjpaGCdclYKjoW6DCR1dSYZazorKPx0oI65p/eEhIgSFhQOyziR/r
+# nje2rOrDlI63zSTlZQuA+yXFENVwoksT5NX/JBamGlhpDZ2LwJrLYedu8zBhQlzW
+# i0kzLq52f2pAbI3cRDC/SJZSyePJrdcWfNzIjHWMKTQA0pFP38KnGSoWVADupS5/
+# +PA6h8ZUWqvL/dry6og+f4jFn44Rcd9PY9r7sA95rVvvgwdBpkIRGEolMdurrbKv
+# TKi2QEpbWP3cC5Rf3SBwyi7isZJMnp3HKoCffsih2H/7i+UqS0UFjr4nkInzf/qn
+# jxyGb6zXmffNJW2neSrmP+kb5SBrP+THM1Z3Pbfrilp10UrVsOgGbT5ES04lVN6I
+# lLCnhBmjaS5y4bbAoiBZnYcR9q7uhXIMUGzzOZ1s/HaYt/nOeOzMI7C3cZgx/Tpv
+# Hl3Up0nD715jYsdDpM9I5D5pLfMgFFd6vr6nPbtuDNUMSzCs1Xs0z5SrM7cN+bE8
+# px8uKaxPe3IbQgQvSk39FF1gFKbSE1tmz7Vh3Z8DaGWaU8RJZu5IveXa4RU9RPaw
+# Nq0BmHo39/XsGLJxWHBt5FSQJgQ3Y199l33IzJCKfR8jKMVdowx3MrtpWyR9oHSX
+# no6mxfV+Wlh/vbDZxGi8Xxvthw==
 # SIG # End signature block
