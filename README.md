@@ -20,7 +20,7 @@ On install scenario:
 NOTE on machines that have received recent monthly update rollup packages, the prerequisites will have been met and most steps above will not be needed.
 
 On uninstall scenario:
-1. It will run the offboarding script, if provided using the parameter **OffboardingScript**. Otherwise it is assumed that the machine is in an offboarded state. **NOTE: Uninstallation is only possible if the machine has been offboarded first.** Please use the script for Windows Server 2019 for **Group Policy** as it is non-interactive; the local offboarding script will fail.
+1. It will run your offboarding script, if provided using the parameter **OffboardingScript**. Otherwise it is assumed that the machine is in an offboarded state. **NOTE: Uninstallation is only possible if the machine has been offboarded first.** Please use the offboarding script for **Group Policy** as it is non-interactive; the local offboarding script will fail.
 2. Uninstall the product.
 3. Removes the Defender Powershell module, if it was loaded inside current Powershell session.
 
