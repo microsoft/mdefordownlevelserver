@@ -777,6 +777,40 @@ try {
                     }
                 }
             }
+            function Install-KB-Offline {
+                [CmdletBinding()]
+                param([string] $updateFileName, [string] $KB, [scriptblock] $scriptBlock)
+                $present = & $scriptBlock
+                if ($present) {
+                    return
+                }
+                $previousProgressPreference = $ProgressPreference
+                $localFile = Join-Path -Path:$PSScriptRoot $updateFileName
+                try {
+                    $ProgressPreference = 'SilentlyContinue'
+                    if (Get-Hotfix -Id:$KB -ErrorAction:SilentlyContinue) {
+                        Trace-Message "$KB already installed."
+                        return
+                    }
+                    Trace-Message "Attempting to install $KB from Script Root"
+                    $exitCode = Measure-Process -FilePath:$((Get-Command 'wusa.exe').Path) -ArgumentList:@($localFile, '/quiet', '/norestart') -PassThru
+                    if (0 -eq $exitCode) {
+                        Trace-Message "$KB installed."
+                    } elseif (0x80240017 -eq $exitCode) {
+                        #0x80240017 = WU_E_NOT_APPLICABLE = Operation was not performed because there are no applicable updates.
+                        Exit-Install -Message:"$KB not applicable, please follow the instructions from $link" -ExitCode:$ERR_INSUFFICIENT_REQUIREMENTS
+                    } elseif (0xbc2 -eq $exitCode) {
+                        #0xbc2=0n3010,ERROR_SUCCESS_REBOOT_REQUIRED The requested operation is successful. Changes will not be effective until the system is rebooted
+                        Exit-Install -Message "$KB required a reboot" -ExitCode:$ERR_PENDING_REBOOT
+                    } else {
+                        Exit-Install -Message:"$KB installation failed with exitcode: $exitCode. Please follow the instructions from $link" -ExitCode:$exitCode
+                    }
+                } catch {
+                    throw
+                } finally {
+                    $ProgressPreference = $previousProgressPreference
+                }
+            }
             <## The minimum number of KBs to be applied (in this order) to a RTM Server 2012R2 image to have a successful install:
                 KB2919442   prerequisite for KB2919355, https://www.microsoft.com/en-us/download/details.aspx?id=42153
                 KB2919355   prerequisite for KB3068708, KB2999226 and KB3080149, https://www.microsoft.com/en-us/download/details.aspx?id=42334
@@ -789,6 +823,19 @@ try {
                 To see the list of installed hotfixes run: 'Get-HotFix | Select-Object -ExpandProperty:HotFixID'
             #>
             ## ucrt dependency (needed by WinDefend service) - see https://www.microsoft.com/en-us/download/confirmation.aspx?id=49063
+            $KB2999226 = Join-Path $PSScriptRoot "Windows8.1-KB2999226-x64.msu"
+            If (Test-Path -Path $KB2999226) {
+            Install-KB-Offline -UpdateFileName:$KB2999226 -KB:KB2999226 -ScriptBlock: {
+                $ucrtbaseDll = "$env:SystemRoot\system32\ucrtbase.dll"
+                if (Test-Path -LiteralPath:$ucrtbaseDll -PathType:Leaf) {
+                    $verInfo = Get-FileVersion -File:$ucrtbaseDll
+                    Trace-Message "$ucrtBaseDll version is $verInfo"
+                    return $true
+                }
+                Trace-Warning "$ucrtbaseDll not present, trying to install KB2999226"
+                return $false
+            }
+            } else {
             Install-KB -Uri:'https://download.microsoft.com/download/D/1/3/D13E3150-3BB2-4B22-9D8A-47EE2D609FFF/Windows8.1-KB2999226-x64.msu' -KB:KB2999226 -ScriptBlock: {
                 $ucrtbaseDll = "$env:SystemRoot\system32\ucrtbase.dll"
                 if (Test-Path -LiteralPath:$ucrtbaseDll -PathType:Leaf) {
@@ -799,7 +846,21 @@ try {
                 Trace-Warning "$ucrtbaseDll not present, trying to install KB2999226"
                 return $false
             }
+        }
             ## telemetry dependency (needed by Sense service) - see https://www.microsoft.com/en-us/download/details.aspx?id=48637
+            $KB3080149 = Join-Path $PSScriptRoot "Windows8.1-KB3080149-x64.msu"
+            If (Test-Path -Path $KB3080149) {
+            Install-KB-Offline -UpdateFileName:$KB3080149 -KB:KB3080149 -ScriptBlock: {
+                $tdhDll = "$env:SystemRoot\system32\Tdh.dll"
+                $minFileVersion = New-Object -TypeName:System.Version -ArgumentList:6, 3, 9600, 17958
+                if ($fileVersion -ge $minFileVersion) {
+                    Trace-Message "$tdhDll version is $fileVersion"
+                    return $true
+                }
+                Trace-Warning "$tdhDll version is $fileVersion (minimum version is $minFileVersion), trying to install KB3080149"
+                return $false
+            }
+            } else {
             Install-KB -Uri:'https://download.microsoft.com/download/A/3/E/A3E82C15-7762-4104-B969-6A486C49DB8D/Windows8.1-KB3080149-x64.msu' -KB:KB3080149 -ScriptBlock: {
                 $tdhDll = "$env:SystemRoot\system32\Tdh.dll"
                 if (Test-Path -LiteralPath:$tdhDll -PathType:Leaf) {
@@ -814,9 +875,12 @@ try {
                 }
                 Trace-Warning "$tdhDll not present, trying to install KB3080149"
                 return $false
+                }
             }
             ## needed by Sense - see VSO#35611997
-            Install-KB -Uri:'https://download.microsoft.com/download/3/9/E/39EAFBBF-A801-4D79-B2B1-DAC4673AFB09/Windows8.1-KB3045999-x64.msu' -KB:KB3045999 -ScriptBlock: {
+            $KB3045999 = Join-Path $PSScriptRoot "Windows8.1-KB3045999-x64.msu"
+            If (Test-Path -Path $KB3045999) {
+            Install-KB-Offline -UpdateFileName:$KB3045999 -KB:KB3045999 -ScriptBlock: {
                 $osVersion = Get-OSVersion
                 $minNtVersion = New-Object -TypeName:System.Version -ArgumentList:6, 3, 9600, 17736
                 if ($osVersion -ge $minNtVersion) {
@@ -825,6 +889,18 @@ try {
                 }
                 Trace-Warning "Current ntoskrnl.exe version is $osVersion (minimum required is $minNtVersion), trying to install KB3045999"
                 return $false
+            } 
+            } else {
+            Install-KB -Uri:'https://download.microsoft.com/download/3/9/E/39EAFBBF-A801-4D79-B2B1-DAC4673AFB09/Windows8.1-KB3045999-x64.msu' -KB:KB3045999 -ScriptBlock: {
+                    $osVersion = Get-OSVersion
+                    $minNtVersion = New-Object -TypeName:System.Version -ArgumentList:6, 3, 9600, 17736
+                    if ($osVersion -ge $minNtVersion) {
+                        Trace-Message "OsVersion is $osVersion"
+                        return $true
+                    }
+                    Trace-Warning "Current ntoskrnl.exe version is $osVersion (minimum required is $minNtVersion), trying to install KB3045999"
+                    return $false
+                }
             }
         } elseif ($osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 18362) {
             $defenderFeature = Get-WindowsOptionalFeature -Online -FeatureName:'Windows-Defender' -ErrorAction:Stop
