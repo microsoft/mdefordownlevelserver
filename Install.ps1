@@ -785,7 +785,6 @@ try {
                     return
                 }
                 $previousProgressPreference = $ProgressPreference
-                $localFile = Join-Path -Path:$PSScriptRoot $updateFileName
                 try {
                     $ProgressPreference = 'SilentlyContinue'
                     if (Get-Hotfix -Id:$KB -ErrorAction:SilentlyContinue) {
@@ -793,7 +792,7 @@ try {
                         return
                     }
                     Trace-Message "Attempting to install $KB from Script Root"
-                    $exitCode = Measure-Process -FilePath:$((Get-Command 'wusa.exe').Path) -ArgumentList:@($localFile, '/quiet', '/norestart') -PassThru
+                    $exitCode = Measure-Process -FilePath:$((Get-Command 'wusa.exe').Path) -ArgumentList:@($updateFileName, '/quiet', '/norestart') -PassThru
                     if (0 -eq $exitCode) {
                         Trace-Message "$KB installed."
                     } elseif (0x80240017 -eq $exitCode) {
