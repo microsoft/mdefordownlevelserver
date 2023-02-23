@@ -56,10 +56,10 @@ param(
     [Parameter(ParameterSetName = 'install')]
     [Parameter(ParameterSetName = 'uninstall')]
     ## Disable ETL logging
-    [switch] $NoEtl)
- 
+    [switch] $NoEtl,
+    ## Disable Tls12 Configuration and Fail Execution
+    [switch] $NoTls12Configuration)
     
-   
 function Get-TraceMessage {
     [OutputType([string])]
     param(
@@ -614,6 +614,7 @@ function Start-TraceSession {
     @{ Name = 'ERR_NOT_ONBOARDED'; Value = 34 }
     @{ Name = 'ERR_NOT_OFFBOARDED'; Value = 35 }
     @{ Name = 'ERR_MSI_USED_BY_OTHER_PROCESS'; Value = 36 }
+    @{ Name = 'ERR_TLS_NOT_CONFIGURED'; Value = 37}
 ) | ForEach-Object { 
     Set-Variable -Name:$_.Name -Value:$_.Value -Option:Constant -Scope:Script 
 }
@@ -621,8 +622,15 @@ function Start-TraceSession {
 Test-ExternalScripts
 if ('Tls12' -notin [Net.ServicePointManager]::SecurityProtocol) {
     ## Server 2016/2012R2 might not have this one enabled and all Invoke-WebRequest might fail.
-    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-    Trace-Message "[Net.ServicePointManager]::SecurityProtocol updated to '$([Net.ServicePointManager]::SecurityProtocol)'"
+    If ($NoTls12Configuration -eq $true) {
+        Trace-Message "Tls1.2 is not enabled and set to not configure it. Failing with Tls exception"
+        Exit-Install "Tls1.2 is not enabled and set to not configure it. Enable Tls1.2 Manually" -ExitCode:$ERR_TLS_NOT_CONFIGURED
+
+    } else {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        Trace-Message "[Net.ServicePointManager]::SecurityProtocol updated to '$([Net.ServicePointManager]::SecurityProtocol)'"
+    }
+
 } 
 
 $osVersion = Get-OSVersion
