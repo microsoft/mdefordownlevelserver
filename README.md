@@ -25,7 +25,7 @@ On uninstall scenario:
 3. Removes the Defender Powershell module, if it was loaded inside current Powershell session.
 
   
-**EXAMPLE 1**: Install the MSI if it is present in the smae location as the script. The script executes install steps 2 through 6 mentioned above.  
+**EXAMPLE 1**: Install the MSI if it is present in the same location as the script. The script executes install steps 2 through 6 mentioned above.  
 ```.\Install.ps1```  
 
 **EXAMPLE 2**: Same as #1 except it will display the installer UI and disables verbose logging.  
