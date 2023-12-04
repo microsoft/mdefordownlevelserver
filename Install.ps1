@@ -567,7 +567,7 @@ function Test-ExternalScripts {
         }       
         ## validate it is an "onboarding" script.
         $on = Get-Content -LiteralPath:$OnboardingScript | Where-Object {
-            $_ -match 'reg\s+add\s+"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Advanced Threat Protection"\s+\/v\s+OnboardingInfo'
+            $_ -match 'add\s+"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Advanced Threat Protection"\s+\/v\s+OnboardingInfo'
         }
         if ($on.Length -eq 0) {
             Exit-Install -Message:"Not an onboarding script: $OnboardingScript" -ExitCode:$ERR_INVALID_PARAMETER
@@ -590,7 +590,7 @@ function Test-ExternalScripts {
         }
 
         $off = Get-Content -LiteralPath:$OffboardingScript | Where-Object {
-            $_ -match 'reg\s+add\s+"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Advanced Threat Protection"\s+\/v\s+696C1FA1-4030-4FA4-8713-FAF9B2EA7C0A'
+            $_ -match 'add\s+"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Advanced Threat Protection"\s+\/v\s+696C1FA1-4030-4FA4-8713-FAF9B2EA7C0A'
         }
         
         if ($off.Length -eq 0) {
