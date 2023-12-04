@@ -284,9 +284,9 @@ function Get-ScriptVersion {
     ## DO NOT EDIT THIS BLOCK - BEGIN
     $version = @{
         Major    = '1'
-        Minor    = '20230922'
+        Minor    = '20231204'
         Patch    = '0'
-        Metadata = 'A08BC943'
+        Metadata = 'E8E12DEA'
     }
     ## DO NOT EDIT THIS BLOCK - END
     [bool] $seen = $false
